@@ -12,6 +12,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
+from pydantic import BaseModel, Field
+
+from app.api_applications import get_application_detail, list_applications, mark_gloria_action
 from app.config import get_settings
 from app.ingest.email_pipeline import process_visa_inbox
 from app.ingest.email_watcher import watch_email_inbox
@@ -109,18 +112,39 @@ def run_application(application_id: str) -> dict:
     return process_application(application_id)
 
 
+@app.get("/applications")
+def applications_list() -> list[dict]:
+    """Gloria queue: newest applications first."""
+    return list_applications()
+
+
 @app.get("/applications/{application_id}")
 def get_application(application_id: str) -> dict:
-    settings = get_settings()
     try:
-        meta = load_meta(application_id, settings)
+        return get_application_detail(application_id)
     except FileNotFoundError as exc:
         raise HTTPException(404, "application not found") from exc
-    report_path = settings.data_dir / "applications" / application_id / "ingest_report.json"
-    report = None
-    if report_path.exists():
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-    return {"meta": meta, "ingest_report": report}
+
+
+class GloriaActionBody(BaseModel):
+    action: str = Field(..., description="approve | send_back | review")
+    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+
+
+@app.post("/applications/{application_id}/gloria-action")
+def gloria_action(application_id: str, body: GloriaActionBody) -> dict:
+    """Human-click lock (demo): Approve / Send back / Keep reviewing."""
+    try:
+        load_meta(application_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    try:
+        meta = mark_gloria_action(
+            application_id, action=body.action, officer=body.officer.strip() or "Gloria"
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"meta": meta}
 
 
 def _demo_llama_extract(case_dir: Path) -> dict:
@@ -178,9 +202,11 @@ def _demo_llama_extract(case_dir: Path) -> dict:
 def seed_case(case_id: str) -> dict:
     """Load eval case docs → Llama extract → ingest → rules AuditReport."""
     from app.ingest.pipeline import seed_from_eval_case
+    from app.models import Outcome
     from app.rules.checklist import load_checklist
     from app.rules.engine import run
     from app.rules.facts_from_case import facts_from_case
+    from app.storage.files import app_dir, load_meta, save_meta
 
     case_dir = _REPO / "eval" / "cases" / case_id
     if not (case_dir / "case.yaml").exists():
@@ -190,12 +216,41 @@ def seed_case(case_id: str) -> dict:
     ingest = process_application(aid)
     checklist = load_checklist(_REPO / "checklists" / "fr-schengen-short-stay.yaml")
     audit = run(checklist, facts_from_case(case_dir))
+    audit_json = audit.model_dump(mode="json")
+
+    if audit.outcome == Outcome.SEND_BACK:
+        human_status = "awaiting_gloria_send_back"
+    elif audit.outcome == Outcome.NEEDS_GLORIA:
+        human_status = "awaiting_gloria_review"
+    else:
+        human_status = "awaiting_gloria_approval"
+
+    settings = get_settings()
+    meta = load_meta(aid, settings)
+    meta["status"] = human_status
+    meta["outcome"] = audit.outcome.value
+    meta["human_required"] = True
+    save_meta(meta, settings)
+    report = {
+        "application_id": aid,
+        "case_id": case_id,
+        "audit": audit_json,
+        "human_required": True,
+        "human_status": human_status,
+        "ingest_report": ingest,
+        "llama_extract": llama,
+    }
+    (app_dir(aid, settings) / "email_pipeline_report.json").write_text(
+        json.dumps(report, indent=2, default=str),
+        encoding="utf-8",
+    )
     return {
         "id": aid,
         "case_id": case_id,
         "llama_extract": llama,
         "ingest_report": ingest,
-        "audit": audit.model_dump(mode="json"),
+        "audit": audit_json,
+        "human_status": human_status,
     }
 
 

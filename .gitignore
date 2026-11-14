@@ -1,5 +1,7 @@
 # secrets & local data
 .env
+.env.local
+frontend/.env.local
 data/
 .venv/
 venv/
