@@ -35,6 +35,7 @@ import {
   uploadAndAudit,
   type ApplicationRow,
 } from "@/lib/api";
+import AgentExecutionGraph from "@/components/visaref/agent-execution-graph";
 
 const cx = (...c: (string | false | null | undefined)[]) =>
   c.filter(Boolean).join(" ");
@@ -958,6 +959,7 @@ function ApprovalPanel({
   const qc = useQueryClient();
   const reduceMotion = useReducedMotion();
   const [showTech, setShowTech] = useState(false);
+  const [showExecutionGraph, setShowExecutionGraph] = useState(false);
   const detailQuery = useQuery({
     queryKey: ["application", applicationId],
     queryFn: () => fetchApplication(applicationId),
@@ -1087,9 +1089,23 @@ function ApprovalPanel({
     >
       <div className="shrink-0 space-y-0.5 border-b border-neutral-900/8 px-4 py-3 dark:border-neutral-100/8 sm:px-5">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className={cx(typeHeadingXs, "truncate")}>
-            {meta?.applicant_name || "Unknown applicant"}
-          </h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className={cx(typeHeadingXs, "truncate")}>
+              {meta?.applicant_name || "Unknown applicant"}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowExecutionGraph(true)}
+              className={cx(
+                secondaryButton,
+                "h-7 shrink-0 gap-1.5 rounded-[var(--rb-r-sm,6px)] px-2.5 text-[12px]/[16px]",
+              )}
+              title="Open the detailed agent execution graph"
+            >
+              <span className="size-1.5 rounded-full bg-[oklch(62%_0.16_145)]" />
+              Agent graph
+            </button>
+          </div>
           <span className={cx(typeCaption, TONE[plain.tone], "shrink-0")}>
             {plain.title}
           </span>
@@ -1642,6 +1658,17 @@ function ApprovalPanel({
           </div>
         )}
       </div>
+      {showExecutionGraph ? (
+        <AgentExecutionGraph
+          applicantName={meta?.applicant_name}
+          files={files}
+          outcome={outcome}
+          resultCount={results.length}
+          escalationCount={Number(audit?.escalations ?? 0)}
+          completed={Boolean(meta?.status?.startsWith("approved"))}
+          onClose={() => setShowExecutionGraph(false)}
+        />
+      ) : null}
     </motion.div>
   );
 }
