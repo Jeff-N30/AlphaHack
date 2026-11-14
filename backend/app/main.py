@@ -1,8 +1,10 @@
-<<<<<<< Updated upstream
 """VisaRef API — intake + preview/classify/MRZ slice."""
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
@@ -11,35 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
+from app.ingest.email import read_matching_emails
+from app.ingest.email_watcher import watch_email_inbox
 from app.ingest.pipeline import process_application
 from app.ingest.render import allowed_suffix
 from app.storage.files import create_application, load_meta, store_upload
 
-app = FastAPI(title="VisaRef", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-_REPO = Path(__file__).resolve().parents[2]
-=======
-"""VisaRef API."""
-from __future__ import annotations
-
-import asyncio
-import logging
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException
-
-from app.config import get_settings
-from app.ingest.email import read_matching_emails
-from app.ingest.email_watcher import watch_email_inbox
-
 logger = logging.getLogger(__name__)
+_REPO = Path(__file__).resolve().parents[2]
 
 
 @asynccontextmanager
@@ -60,7 +41,13 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="VisaRef", version="0.1.0", lifespan=lifespan)
->>>>>>> Stashed changes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -68,7 +55,6 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-<<<<<<< Updated upstream
 @app.get("/checklists")
 def list_checklists() -> list[dict[str, str]]:
     settings = get_settings()
@@ -165,7 +151,8 @@ def demo_page():
     """Hackathon demo UI — run one eval case and show outcome."""
     html = (_REPO / "tools" / "demo.html").read_text(encoding="utf-8")
     return HTMLResponse(html)
-=======
+
+
 @app.post("/email/inbox/read")
 def read_email_inbox() -> dict[str, object]:
     """Read configured matching emails and save their attachments locally."""
@@ -189,4 +176,3 @@ def read_email_inbox() -> dict[str, object]:
             for message in messages
         ],
     }
->>>>>>> Stashed changes
