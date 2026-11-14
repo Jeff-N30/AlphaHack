@@ -1,6 +1,7 @@
 """Single gateway for every LLM call: schema out, CostLine, cache, DEMO_OFFLINE.
 
 LLMs may only fill Extraction / ClassifiedPage models. Never PASS/FAIL.
+VisaRef demo: Ollama llama3.2 only.
 """
 from __future__ import annotations
 
@@ -54,20 +55,17 @@ def _cache_path(settings: Settings, key: str) -> Path:
     return _cache_dir(settings) / f"{key}.json"
 
 
-def _price_usd(settings: Settings, model: str, inp: int, out: int) -> float:
-    provider = settings.extract_provider.lower()
-    if provider in {"ollama", "llama", "llama3.2"}:
-        return 0.0
-    m = model.lower()
-    if "haiku" in m:
-        pin, pout = settings.price_claude_haiku_5_5_in, settings.price_claude_haiku_5_5_out
-    elif "claude" in m or "sonnet" in m:
-        pin, pout = settings.price_claude_sonnet_5_5_in, settings.price_claude_sonnet_5_5_out
-    elif "gemini" in m:
-        pin, pout = settings.price_gemini_3_8_flash_in, settings.price_gemini_3_8_flash_out
-    else:
-        return 0.0
-    return (inp * pin + out * pout) / 1_000_000
+def _record_cost(step: str, model: str, inp: int, out: int, settings: Settings) -> CostLine:
+    # Local Ollama — $0
+    line = CostLine(
+        step=step,
+        model=model,
+        input_tokens=inp,
+        output_tokens=out,
+        usd=0.0,
+    )
+    _COST_LOG.append(line)
+    return line
 
 
 def _parse_json_model(raw: str, schema: type[T]) -> T:
@@ -108,72 +106,9 @@ def _call_ollama(system: str, user: str, schema: type[T], settings: Settings) ->
         resp.raise_for_status()
         data = resp.json()
     content = (data.get("message") or {}).get("content") or ""
-    # Ollama may report eval counts
     inp = int(data.get("prompt_eval_count") or 0)
     out = int(data.get("eval_count") or 0)
     return _parse_json_model(content, schema), inp, out
-
-
-def _record_cost(step: str, model: str, inp: int, out: int, settings: Settings) -> CostLine:
-    line = CostLine(
-        step=step,
-        model=model,
-        input_tokens=inp,
-        output_tokens=out,
-        usd=_price_usd(settings, model, inp, out),
-    )
-    _COST_LOG.append(line)
-    return line
-
-
-@retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(3), reraise=True)
-def _call_gemini(system: str, user: str, schema: type[T], settings: Settings) -> tuple[T, int, int]:
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=settings.gemini_api_key)
-    config = types.GenerateContentConfig(
-        system_instruction=system,
-        response_mime_type="application/json",
-        response_schema=schema,
-        temperature=0.0,
-    )
-    resp = client.models.generate_content(
-        model=settings.extract_model,
-        contents=user,
-        config=config,
-    )
-    text = (resp.text or "").strip()
-    usage = getattr(resp, "usage_metadata", None)
-    inp = int(getattr(usage, "prompt_token_count", 0) or 0)
-    out = int(getattr(usage, "candidates_token_count", 0) or 0)
-    return schema.model_validate_json(text), inp, out
-
-
-@retry(wait=wait_exponential(multiplier=1, min=1, max=8), stop=stop_after_attempt(3), reraise=True)
-def _call_anthropic(system: str, user: str, schema: type[T], settings: Settings) -> tuple[T, int, int]:
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    tool = {
-        "name": "extract_fields",
-        "description": f"Fill {schema.__name__} from the document text. Fields only, no verdicts.",
-        "input_schema": schema.model_json_schema(),
-    }
-    msg = client.messages.create(
-        model=settings.extract_model,
-        max_tokens=4096,
-        system=system,
-        tools=[tool],
-        tool_choice={"type": "tool", "name": "extract_fields"},
-        messages=[{"role": "user", "content": user}],
-    )
-    inp = int(msg.usage.input_tokens)
-    out = int(msg.usage.output_tokens)
-    for block in msg.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "extract_fields":
-            return schema.model_validate(block.input), inp, out
-    raise RuntimeError("anthropic extract: no tool_use block")
 
 
 def extract_structured(
@@ -198,7 +133,7 @@ def extract_structured(
     path = _cache_path(settings, key)
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
-        _record_cost(step, model, 0, 0, settings)  # cache hit — zero tokens
+        _record_cost(step, model, 0, 0, settings)
         return schema.model_validate(data["result"])
 
     if settings.demo_offline:
@@ -218,18 +153,12 @@ def extract_structured(
         return offline_fixture
 
     provider = settings.extract_provider.lower()
-    if provider in {"ollama", "llama", "llama3.2"}:
-        result, inp, out = _call_ollama(system, user, schema, settings)
-    elif provider in {"gemini", "anthropic", "claude"}:
+    if provider not in {"ollama", "llama", "llama3.2"}:
         raise RuntimeError(
-            f"EXTRACT_PROVIDER={provider!r} is disabled — VisaRef uses Ollama llama3.2 only. "
-            "Set EXTRACT_PROVIDER=ollama and EXTRACT_MODEL=llama3.2 in .env"
-        )
-    else:
-        raise RuntimeError(
-            f"unknown EXTRACT_PROVIDER={provider!r} — use ollama (llama3.2)"
+            f"EXTRACT_PROVIDER={provider!r} is not supported — use ollama / llama3.2 only"
         )
 
+    result, inp, out = _call_ollama(system, user, schema, settings)
     _record_cost(step, model, inp, out, settings)
     path.write_text(
         json.dumps({"result": result.model_dump(mode="json"), "source": "live"}, indent=2, default=str),

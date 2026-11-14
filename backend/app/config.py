@@ -26,9 +26,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLMs — Ollama llama3.2 only for the demo (no Gemini / Claude)
-    gemini_api_key: str = ""  # unused
-    anthropic_api_key: str = ""  # unused
+    # LLMs — Ollama llama3.2 only
     extract_provider: str = "ollama"
     extract_model: str = "llama3.2"
     ollama_base_url: str = "http://127.0.0.1:11434"
@@ -38,14 +36,6 @@ class Settings(BaseSettings):
     max_pages_per_doc: int = 4
     demo_offline: bool = False
     prompt_version: str = "3"
-
-    # Prices USD / 1M tokens
-    price_gemini_3_8_flash_in: float = 0.75
-    price_gemini_3_8_flash_out: float = 3.75
-    price_claude_sonnet_5_5_in: float = 2.00
-    price_claude_sonnet_5_5_out: float = 10.00
-    price_claude_haiku_5_5_in: float = 0.10
-    price_claude_haiku_5_5_out: float = 0.50
 
     # Human cost baseline
     officer_hourly_usd: float = 5.00
@@ -63,7 +53,7 @@ class Settings(BaseSettings):
     checklist_dir: Path = Field(default=_REPO_ROOT / "checklists")
     next_public_api_url: str = "http://localhost:8000"
 
-    # Optional channels
+    # Email intake (IMAP)
     email_imap_host: str = ""
     email_imap_port: int = 993
     email_imap_user: str = ""
@@ -73,20 +63,6 @@ class Settings(BaseSettings):
     email_read_unread_only: bool = True
     email_poll_interval_s: int = 30
     email_connection_timeout_s: int = 20
-    whatsapp_token: str = ""
-    whatsapp_phone_number_id: str = ""
-    whatsapp_verify_token: str = ""
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
-    twilio_whatsapp_from: str = ""
-    smtp_host: str = ""
-    smtp_user: str = ""
-    smtp_password: str = ""
-
-    # Observability
-    langfuse_public_key: str = ""
-    langfuse_secret_key: str = ""
-    langfuse_host: str = "https://cloud.langfuse.com"
 
     @field_validator("data_dir", "checklist_dir", mode="before")
     @classmethod

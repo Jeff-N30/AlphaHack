@@ -10,8 +10,6 @@ dependencies = [
   "pydantic-settings",
   "sqlmodel",
   "python-multipart",
-  "google-genai",
-  "anthropic",
   "httpx",
   "tenacity",
   "pymupdf",
