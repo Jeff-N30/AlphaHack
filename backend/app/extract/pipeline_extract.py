@@ -22,6 +22,9 @@ EXTRACTABLE = {
     DocType.employment_letter,
     DocType.payslip,
     DocType.family_register,
+    DocType.cnss_certificate,
+    DocType.photo,
+    DocType.travel_plan,
 }
 
 

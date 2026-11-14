@@ -135,4 +135,33 @@ export function postSeedCase(caseId: string) {
   });
 }
 
+export async function uploadAndAudit(
+  files: File[],
+  opts?: { checklistId?: string; submissionDate?: string },
+) {
+  if (!files.length) throw new Error("Pick at least one PDF or image");
+  const checklistId = opts?.checklistId ?? "fr-schengen-short-stay";
+  const submissionDate = opts?.submissionDate ?? "2026-11-16";
+  const body = new FormData();
+  body.append("checklist_id", checklistId);
+  body.append("submission_date", submissionDate);
+  for (const f of files) body.append("files", f);
+
+  const created = await fetch(`${API_URL}/applications`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    body,
+  });
+  if (!created.ok) {
+    const text = await created.text().catch(() => "");
+    throw new Error(text || `${created.status} ${created.statusText}`);
+  }
+  const meta = (await created.json()) as { id: string; rejected?: unknown[] };
+  const audit = await request<Record<string, unknown>>(
+    `/applications/${meta.id}/run`,
+    { method: "POST" },
+  );
+  return { id: meta.id, created: meta, audit };
+}
+
 export { API_URL };

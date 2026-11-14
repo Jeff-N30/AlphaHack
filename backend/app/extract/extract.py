@@ -27,10 +27,18 @@ from app.models import (
     Extraction,
     FamilyRegisterExtraction,
     FlightBookingExtraction,
+    GenericExtraction,
     HotelBookingExtraction,
     PayslipExtraction,
     TravelInsuranceExtraction,
 )
+
+_GENERIC_TYPES = {
+    DocType.cnss_certificate,
+    DocType.photo,
+    DocType.travel_plan,
+    DocType.unknown,
+}
 
 
 def extract_flight(
@@ -177,6 +185,28 @@ def extract_family_register(
     )
 
 
+def extract_generic(
+    doc_type: DocType,
+    text: str,
+    *,
+    source: bytes | str | Path | None = None,
+    settings: Settings | None = None,
+) -> GenericExtraction:
+    """Presence-only docs (CNSS / photo / travel plan) — no field verdicts."""
+    _ = source, settings
+    if doc_type not in _GENERIC_TYPES:
+        doc_type = DocType.unknown
+    snippet = " ".join((text or "").split())[:160]
+    return GenericExtraction(
+        doc_type=doc_type,
+        language="en",
+        anomaly_flags=[],
+        names_found=[],
+        summary=snippet or doc_type.value,
+        field_meta={},
+    )
+
+
 def extract_by_type(
     doc_type: DocType,
     text: str,
@@ -200,6 +230,8 @@ def extract_by_type(
         return extract_payslip(text, source=source, settings=settings)
     if doc_type == DocType.family_register:
         return extract_family_register(text, source=source, settings=settings)
+    if doc_type in _GENERIC_TYPES:
+        return extract_generic(doc_type, text, source=source, settings=settings)
     raise NotImplementedError(f"LLM extract not wired for {doc_type.value}")
 
 
