@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     llm_timeout_s: int = 120
     max_pages_per_doc: int = 4
     demo_offline: bool = False
-    prompt_version: str = "2"
+    prompt_version: str = "3"
 
     # Prices USD / 1M tokens
     price_gemini_3_8_flash_in: float = 0.75

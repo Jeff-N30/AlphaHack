@@ -6,7 +6,10 @@ Rules:
 - Never output PASS, FAIL, valid, sufficient, expired, or compliant — fields only.
 - Airports = IATA 3 letters (BEY, CDG). Countries = ISO alpha-2 (FR, LB).
 - Currencies = ISO 4217 (USD, EUR). Never convert. Never use LBP unless printed.
-- Dates = YYYY-MM-DD. Normalize "04 February 2026" / "04/02/2026" / "04Feb" → 2026-02-04.
+- Dates = YYYY-MM-DD in the JSON. Source docs use European day-first (Lebanon/France):
+  "10/12/2026" and "10-12-2026" mean 10 December 2026 → 2026-12-10 (NOT October 12).
+  "05/12/2026" → 2026-12-05. Prefer month names when present ("10 December 2026").
+  Never swap day and month.
 - Names: keep order as printed; uppercase OK. Strip titles MR/MRS/MS later in code.
 - If a field is missing in the text, use null only when the schema allows; else omit or empty list.
 - anomaly_flags: oddities only (blurry, missing stamp, currency weird) — never a verdict.
@@ -27,6 +30,7 @@ FLIGHT_USER = """Document type: flight booking / e-ticket / Amadeus itinerary.
 Extract passenger_names, booking_reference, optional passport_number, and ALL segments
 (from_airport, to_airport, to_country, departure_date, flight_number).
 Outbound first, return last. Round-trip = at least 2 segments.
+Numeric dates are DAY/MONTH/YEAR (European). Example: printed 10/12/2026 → departure_date 2026-12-10.
 """ + _FLIGHT_SHOT + """
 --- DOCUMENT TEXT ---
 <<<TEXT>>>
@@ -70,6 +74,7 @@ APPLICATION_FORM_USER = """Document type: Harmonised Schengen / France-Visas app
 (not an employment letter — ignore occupation/employer fields for extraction type).
 Extract surname, given_names, date_of_birth, passport_number, expiry_date,
 optional france_visas_reference, intended_arrival, intended_departure, signed.
+Numeric dates are DAY/MONTH/YEAR. Example: intended travel 10/12/2026 → 2026-12-10 (December), never 2026-10-12.
 """ + _FORM_SHOT + """
 --- DOCUMENT TEXT ---
 <<<TEXT>>>

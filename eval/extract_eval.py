@@ -32,7 +32,12 @@ from app.ingest.render import read_preview  # noqa: E402
 
 
 def _norm_name(s: str) -> str:
-    return " ".join(s.upper().replace("/", " ").split())
+    """Uppercase, drop titles, sort tokens — same idea as rules name match."""
+    s = s.upper().replace("/", " ")
+    for t in (" MR", " MRS", " MS", "MR ", "MRS ", "MS "):
+        s = s.replace(t, " ")
+    toks = [t for t in s.split() if t and t not in {"MR", "MRS", "MS"}]
+    return " ".join(sorted(toks))
 
 
 def _as_date(v) -> str | None:
