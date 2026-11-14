@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -165,10 +166,17 @@ def process_visa_inbox(
     *,
     settings: Settings | None = None,
     submission_date: date | None = None,
+    started_after: datetime | None = None,
+    max_messages: int | None = None,
 ) -> dict[str, Any]:
     """Poll IMAP for VISA mails and run the full pipeline on each."""
     settings = settings or get_settings()
-    messages = read_matching_emails(settings)
+    messages = read_matching_emails(
+        settings,
+        started_after=started_after,
+        max_messages=max_messages,
+    )
+    messages = [message for message in messages if message.source == "subject_filter"]
     results = [
         process_email_message(m, settings=settings, submission_date=submission_date) for m in messages
     ]

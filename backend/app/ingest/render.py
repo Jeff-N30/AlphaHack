@@ -52,6 +52,8 @@ def allowed_suffix(path: Path) -> bool:
 
 
 def _normalize_image(img: Image.Image) -> Image.Image:
+    if img.mode == "P":
+        img = img.convert("RGBA")
     img = ImageOps.exif_transpose(img)
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")

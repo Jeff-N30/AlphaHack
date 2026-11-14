@@ -88,13 +88,15 @@ def _call_ollama(system: str, user: str, schema: type[T], settings: Settings) ->
     payload = {
         "model": settings.extract_model,
         "stream": False,
-        "format": "json",
+        "format": schema.model_json_schema(),
         "options": {"temperature": 0.0},
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    f"{system}\n\nRespond with ONE JSON object only, matching this schema:\n{schema_json}"
+                    f"{system}\n\nReturn field values only as ONE JSON object. "
+                    f"Do not return the schema, its title, or its descriptions.\n"
+                    f"Required output schema:\n{schema_json}"
                 ),
             },
             {"role": "user", "content": user},

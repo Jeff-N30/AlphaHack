@@ -36,18 +36,22 @@ cp .env.example .env                          # add GEMINI_API_KEY + ANTHROPIC_A
 
 ### Read VISA emails (full pipeline)
 
-Unread IMAP messages whose subject contains `VISA` are pulled, then run end-to-end:
+Only messages received after backend startup are considered, one per polling interval.
+Messages whose subject contains `VISA` are pulled, then run end-to-end:
 
 `save attachments → OCR/classify/MRZ → Llama field extract → TLS checklist rules (code)`
 
 Attachments land under `data/email_inbox/<uid>/`; the audit is stored on the new
 application as `email_pipeline_report.json`. Manual trigger: `POST /email/inbox/read`.
+Messages without `VISA` in the subject are extracted and triaged by Ollama using
+email text, PDF/image OCR, and attachment names. Related messages go to
+`data/email_inbox/needs_review/<applicant>_<uid>/`; unrelated messages are discarded.
 
 1. Gmail: enable 2-Step Verification, then create a Google **App Password**.
 2. Copy `.env.example` → `.env` and set `EMAIL_IMAP_USER` / `EMAIL_IMAP_PASSWORD`.
 3. Start the backend (`uvicorn app.main:app --reload --app-dir backend`).
-4. Watcher polls every `EMAIL_POLL_INTERVAL_S` (default 30). Console prints each
-   processed uid + checklist `outcome`.
+5. Check `data\email_inbox\` for saved applicant folders and
+   `data\email_inbox\needs_review\` for non-subject-matched related messages.
 
 ## The four rules that win this
 1. **AI extracts, code decides.** LLMs turn pixels into JSON. Python decides PASS/FAIL. The LLM can only *raise* a flag.
