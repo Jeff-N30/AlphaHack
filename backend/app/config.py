@@ -26,10 +26,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLMs — default extract = local Ollama llama3.2 (no cloud key)
-    gemini_api_key: str = ""
-    anthropic_api_key: str = ""
-    extract_provider: str = "ollama"  # ollama | gemini | anthropic
+    # LLMs — Ollama llama3.2 only for the demo (no Gemini / Claude)
+    gemini_api_key: str = ""  # unused
+    anthropic_api_key: str = ""  # unused
+    extract_provider: str = "ollama"
     extract_model: str = "llama3.2"
     ollama_base_url: str = "http://127.0.0.1:11434"
     draft_provider: str = "ollama"

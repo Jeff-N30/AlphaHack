@@ -220,16 +220,15 @@ def extract_structured(
     provider = settings.extract_provider.lower()
     if provider in {"ollama", "llama", "llama3.2"}:
         result, inp, out = _call_ollama(system, user, schema, settings)
-    elif provider == "anthropic":
-        if not settings.anthropic_api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY missing")
-        result, inp, out = _call_anthropic(system, user, schema, settings)
-    elif provider == "gemini":
-        if not settings.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY missing (or set DEMO_OFFLINE=1 / use ollama)")
-        result, inp, out = _call_gemini(system, user, schema, settings)
+    elif provider in {"gemini", "anthropic", "claude"}:
+        raise RuntimeError(
+            f"EXTRACT_PROVIDER={provider!r} is disabled — VisaRef uses Ollama llama3.2 only. "
+            "Set EXTRACT_PROVIDER=ollama and EXTRACT_MODEL=llama3.2 in .env"
+        )
     else:
-        raise RuntimeError(f"unknown EXTRACT_PROVIDER={provider!r} (use ollama|gemini|anthropic)")
+        raise RuntimeError(
+            f"unknown EXTRACT_PROVIDER={provider!r} — use ollama (llama3.2)"
+        )
 
     _record_cost(step, model, inp, out, settings)
     path.write_text(
