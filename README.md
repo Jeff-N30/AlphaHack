@@ -1,62 +1,71 @@
-# VisaRef: AI visa application audit officer (AlphaHack 2026 · team goatpackers)
+# VisaRef (AlphaHack 2026 · goatpackers)
 
-> Gloria, a visa officer at a Lebanese travel agency, spends **30–60 min per file** checking passports,
-> bank statements, flights, hotels and insurance before each TLScontact appointment. VisaRef does the
-> checking in about a minute, shows evidence for every check, drafts the "please send us…" message, and **waits
-> for Gloria to click** Approve or Send.
+Gloria’s desk: pre-check France Schengen short-stay files.  
+**AI extracts → code decides PASS/FAIL → Gloria Approve / Send back.**  
+We never upload to TLS — Gloria takes the file herself.
 
-**Demo scope:** France · Schengen short-stay (type C) · tourism · employee · filed at TLScontact Beirut.
-**Architecture scope:** any destination. Each one is a checklist YAML in `checklists/` and adding the UK is a new file, not new code.
+## Jeff: only these folders matter
 
-## What's in this package
-| File | What it's for |
+| Path | What it is |
 |---|---|
-| `BUILD.md` | Deep dive: architecture, data flow, modules, folder layout, build order with time boxes, demo script, pitch per twist, risks |
-| `STACK.md` | Stack + reasoning + alternatives, model choice, **cost per application** (sourced) |
-| `KEYS.md` + `.env.example` | Every account and key, where to get it, free-tier notes |
-| `.cursor/rules/visaref.mdc` | Cursor project rules (always on): lock rule, "AI extracts, code decides", privacy, tests |
-| `PROMPTS.md` | Extraction and drafting prompts + **12 Cursor agent prompts to paste in order** |
-| `checklists/fr-schengen-short-stay.yaml` | France checklist: 31 rules, each one tagged `code` / `llm_flag` / `manual`, with source URLs |
-| `schemas/models.py` | Pydantic v2 models: every document extraction, `CheckResult`, `AuditReport`, draft + lock state |
-| `eval/cases/case0X_*/` | 5 fake applicants (`case.yaml`) + expected per-rule results (`expected.yaml`) |
-| `eval/README.md` | Eval plan: scaling to 20 cases, pass rate, human count, nightly posting |
-| `eval/score.py` | Working scorer (pass rate, rule accuracy, human count, cost) → `eval/history.csv` |
-| `tools/generate_fake_docs.py` | Renders fake docs from `case.yaml`: passport PNG with **valid ICAO MRZ** (self-verified), PDFs for the rest |
+| `frontend/` | Gloria desk UI (Next.js) — open this in the browser |
+| `backend/` | API + rules + Llama extract + email |
+| `checklists/fr-schengen-short-stay.yaml` | The France rules (code, not AI) |
+| `eval/cases/` | Fake applicants for demo seed |
+| `.env` | Your secrets (copy from `.env.example`) — **not in git** |
+| `data/` | Runtime files (gitignored) — applications + email inbox |
 
-## 5-minute start
+Ignore for now: `BUILD.md`, `PROMPTS.md`, `KEYS.md` WhatsApp stuff, empty `drafts/` / `lock/` / `outbound/`.
+
+## Run the desk (what actually works)
+
 ```bash
-# 1) put this folder at the root of your repo, open it in Cursor
-python -m venv .venv && source .venv/bin/activate
-pip install -r tools/requirements.txt
-python tools/generate_fake_docs.py            # -> eval/cases/*/docs/ (MRZ self-check prints "valid")
-python eval/score.py --selftest               # scorer sanity check -> 5/5
-cp .env.example .env                          # add GEMINI_API_KEY + ANTHROPIC_API_KEY (see KEYS.md)
-# 2) In Cursor Agent, paste PROMPTS.md -> "Cursor build sequence" prompt 1, then 2, 3...
+# 1) Python
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e backend/[dev]
+
+# 2) Llama (required for live extract / email triage)
+brew install ollama
+ollama pull llama3.2
+ollama serve
+
+# 3) OCR for passport images / scanned PDFs
+brew install tesseract
+
+# 4) Env
+cp .env.example .env
+# set EXTRACT_PROVIDER=ollama, DEMO_OFFLINE=0
+# optional: EMAIL_IMAP_* for Gmail
+
+# 5) Backend
+uvicorn app.main:app --reload --app-dir backend --port 8000
+
+# 6) Frontend (other terminal)
+cd frontend && pnpm install && pnpm dev
+# → http://localhost:3000
 ```
 
-### Read VISA emails (full pipeline)
+### Demo on the desk
+1. **Seed complete case** → Approve (look-items only)  
+2. **Seed bank failure** → Send back (balance too low)  
 
-Only messages received after backend startup are considered, one per polling interval.
-Messages whose subject contains `VISA` are pulled, then run end-to-end:
+### Email
+- Subject contains `VISA` → full pipeline → Gloria queue  
+- Empty / other subject → Llama triage → `data/email_inbox/needs_review/` (not desk yet)  
 
-`save attachments → OCR/classify/MRZ → Llama field extract → TLS checklist rules (code)`
+## How images / PDFs get “understood”
 
-Attachments land under `data/email_inbox/<uid>/`; the audit is stored on the new
-application as `email_pipeline_report.json`. Manual trigger: `POST /email/inbox/read`.
-Messages without `VISA` in the subject are extracted and triaged by Ollama using
-email text, PDF/image OCR, and attachment names. Related messages go to
-`data/email_inbox/needs_review/<applicant>_<uid>/`; unrelated messages are discarded.
+```text
+passport.png / scanned PDF
+    → Tesseract OCR (or PDF text layer)
+    → Llama fills fields (form / flight / insurance)
+    → Python rules PASS/FAIL
+```
 
-1. Gmail: enable 2-Step Verification, then create a Google **App Password**.
-2. Copy `.env.example` → `.env` and set `EMAIL_IMAP_USER` / `EMAIL_IMAP_PASSWORD`.
-3. Start the backend (`uvicorn app.main:app --reload --app-dir backend`).
-5. Check `data\email_inbox\` for saved applicant folders and
-   `data\email_inbox\needs_review\` for non-subject-matched related messages.
+If Tesseract or Ollama is missing, images look like “nothing works.”
 
-## The four rules that win this
-1. **AI extracts, code decides.** LLMs turn pixels into JSON. Python decides PASS/FAIL. The LLM can only *raise* a flag.
-2. **MRZ checksums are the truth anchor.** Passport data is re-derived from the MRZ and verified with ICAO check digits, so a misread digit can't slip through quietly.
-3. **The lock lives in code.** The pipeline can only create `DRAFT`s. Only the `/send` and `/approve` endpoints, with Gloria's session and a one-time confirm token, can change state.
-4. **Measure every night.** `eval/score.py` prints the pass rate, how many cases needed Gloria, and the cost per application. Post that line.
-
-All test data is fake. Nothing in this package is legal or immigration advice. Gloria checks the official France-Visas personalised list for each applicant.
+## Product rules
+1. AI extracts JSON only — never PASS/FAIL  
+2. Passport identity from MRZ checksums  
+3. Gloria clicks Approve / Send back  
+4. No TLS upload from VisaRef  
