@@ -2,7 +2,7 @@
 
 Gloria’s desk: pre-check France Schengen short-stay files.  
 **AI extracts → code decides PASS/FAIL → Gloria Approve / Send back.**  
-We never upload to TLS — Gloria takes the file herself.
+Never: Gemini, WhatsApp, or TLS upload — Gloria takes the file to TLS herself.
 
 ## Jeff: only these folders matter
 
