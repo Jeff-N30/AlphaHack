@@ -13,7 +13,7 @@ Never: Gemini, WhatsApp, or TLS upload — Gloria takes the file to TLS herself.
 | `checklists/fr-schengen-short-stay.yaml` | France rules (code, not AI) |
 | `eval/cases/` | Fake applicants for seed + tests |
 | `.env` | Secrets (from `.env.example`) — not in git |
-| `data/` | Runtime apps + inbox (gitignored) |
+| `data/` | Local SQLite metadata database, runtime apps + inbox (gitignored) |
 
 ## Run
 
@@ -28,6 +28,13 @@ uvicorn app.main:app --reload --app-dir backend --port 8000
 cd frontend && pnpm install && pnpm dev   # → http://localhost:3000
 ```
 
+On Windows, after the virtual environment and frontend dependencies are installed,
+double-click `start_visaref.bat` in the repository root. It opens the backend and
+the UI in separate terminal windows:
+
+- Backend: `http://127.0.0.1:8000`
+- UI: `http://localhost:3000`
+
 ### Desk
 1. **Seed complete case** → Approve  
 2. **Seed bank failure** → Send back (draft shown)  
@@ -35,6 +42,12 @@ cd frontend && pnpm install && pnpm dev   # → http://localhost:3000
 4. **Read inbox** → VISA / Llama-triaged → queue  
 
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
+
+The desk has a compact MVP lock screen with PIN `0000`; an unlocked browser
+session expires after five minutes. This is only a UI convenience lock. The
+local database remains regular SQLite so it can be opened in TablePlus or
+SQLiteStudio; use Windows user permissions and disk encryption for machine-level
+protection.
 
 ## Pipeline
 
