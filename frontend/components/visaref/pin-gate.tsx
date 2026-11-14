@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { postOfficerAuth } from "@/lib/api";
 
 const SESSION_KEY = "visaref.session";
 const SESSION_DURATION_MS = 5 * 60 * 1000;
-const PIN = "0000";
 const EASE_OUT = [0.2, 0, 0, 1] as const;
 
 type Session = {
@@ -45,35 +45,45 @@ function writeSession(): Session {
 
 export default function PinGate({ children }: { children: React.ReactNode }) {
   const reduceMotion = useReducedMotion();
-  const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [hydrated, setHydrated] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
-  const [digits, setDigits] = useState(["", "", "", ""]);
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [shake, setShake] = useState(0);
+  const [pending, setPending] = useState(false);
 
   const lock = useCallback(() => {
     window.sessionStorage.removeItem(SESSION_KEY);
     setUnlocked(false);
     setExpiresAt(null);
-    setDigits(["", "", "", ""]);
+    setPin("");
     setError("");
   }, []);
 
-  const submitDigits = (entered: string) => {
-    if (entered !== PIN) {
-      setError(entered.length === 4 ? "That PIN is not correct." : "Enter all four digits.");
+  const submitPin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const entered = pin.trim();
+    if (!entered) {
+      setError("Enter your officer PIN.");
       setShake((value) => value + 1);
-      setDigits(["", "", "", ""]);
-      inputRefs.current[0]?.focus();
       return;
     }
-
-    const session = writeSession();
-    setExpiresAt(session.expiresAt);
+    setPending(true);
     setError("");
-    setUnlocked(true);
+    try {
+      await postOfficerAuth(entered);
+      const session = writeSession();
+      setExpiresAt(session.expiresAt);
+      setUnlocked(true);
+      setPin("");
+    } catch {
+      setError("That PIN is not correct.");
+      setShake((value) => value + 1);
+      setPin("");
+    } finally {
+      setPending(false);
+    }
   };
 
   useEffect(() => {
@@ -94,7 +104,10 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
     const checkExpiry = () => {
       if (Date.now() >= expiresAt) lock();
     };
-    const timeout = window.setTimeout(checkExpiry, Math.max(0, expiresAt - Date.now()));
+    const timeout = window.setTimeout(
+      checkExpiry,
+      Math.max(0, expiresAt - Date.now()),
+    );
     const onVisibilityChange = () => {
       if (!document.hidden) checkExpiry();
     };
@@ -105,36 +118,6 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [expiresAt, lock, unlocked]);
-
-  const submitPin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    submitDigits(digits.join(""));
-  };
-
-  const updateDigit = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const next = [...digits];
-    next[index] = digit;
-    setDigits(next);
-    setError("");
-    if (digit && index < 3) inputRefs.current[index + 1]?.focus();
-    if (digit && index === 3) {
-      window.setTimeout(() => submitDigits(next.join("")), 0);
-    }
-  };
-
-  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
-    event.preventDefault();
-    const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    if (!pasted) return;
-    const next = pasted.split("").concat(["", "", "", ""]).slice(0, 4);
-    setDigits(next);
-    inputRefs.current[Math.min(pasted.length, 4) - 1]?.focus();
-    setError("");
-    if (pasted.length === 4) {
-      window.setTimeout(() => submitDigits(next.join("")), 0);
-    }
-  };
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -189,48 +172,49 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
                 Enter your PIN
               </p>
               <p className="mt-1.5 text-[12px]/[16px] text-neutral-900/70 dark:text-neutral-100/70">
-                Unlock the Gloria desk to continue.
+                Unlock with the officer PIN from your server config.
               </p>
             </div>
 
             <form onSubmit={submitPin}>
               <motion.div
                 key={shake}
-                className="mb-3.5 flex gap-1.5"
+                className="mb-3.5"
                 animate={shake ? { x: [0, -6, 6, -4, 4, 0] } : undefined}
                 transition={{ duration: 0.28, ease: EASE_OUT }}
               >
-                {digits.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={(element) => {
-                      inputRefs.current[index] = element;
-                    }}
-                    aria-label={`PIN digit ${index + 1}`}
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    className="h-12 min-w-0 flex-1 rounded-[var(--rb-r-sm,6px)] border border-neutral-900/14 bg-white text-center font-mono text-[20px] text-neutral-900 outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-neutral-900/45 focus:ring-2 focus:ring-neutral-900/10 dark:border-neutral-100/14 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100/45 dark:focus:ring-neutral-100/10"
-                    inputMode="numeric"
-                    maxLength={1}
-                    onChange={(event) => updateDigit(index, event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Backspace" && !digits[index] && index > 0) {
-                        inputRefs.current[index - 1]?.focus();
-                      }
-                    }}
-                    onPaste={handlePaste}
-                    type="password"
-                    value={digit}
-                  />
-                ))}
+                <input
+                  aria-label="Officer PIN"
+                  autoComplete="one-time-code"
+                  className="h-12 w-full rounded-[var(--rb-r-sm,6px)] border border-neutral-900/14 bg-white px-3 text-center font-mono text-[20px] tracking-[0.35em] text-neutral-900 outline-none transition-[border-color,box-shadow] duration-[120ms] focus:border-neutral-900/45 focus:ring-2 focus:ring-neutral-900/10 dark:border-neutral-100/14 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-100/45 dark:focus:ring-neutral-100/10"
+                  disabled={pending}
+                  inputMode="numeric"
+                  maxLength={32}
+                  onChange={(event) => {
+                    setPin(event.target.value.replace(/\D/g, "").slice(0, 32));
+                    setError("");
+                  }}
+                  type="password"
+                  value={pin}
+                />
               </motion.div>
 
-              <p className="mb-1 min-h-[16px] text-[12px]/[16px] text-[oklch(51%_0.18_26)] dark:text-[oklch(76%_0.14_26)]">
+              <button
+                type="submit"
+                disabled={pending || !pin}
+                className="flex h-10 w-full items-center justify-center rounded-[var(--rb-r-sm,6px)] bg-neutral-900 text-[13px] font-[450] text-white disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900"
+              >
+                {pending ? "Checking…" : "Unlock"}
+              </button>
+
+              <p className="mb-1 mt-2 min-h-[16px] text-[12px]/[16px] text-[oklch(51%_0.18_26)] dark:text-[oklch(76%_0.14_26)]">
                 {error}
               </p>
             </form>
 
             <p className="mt-3 text-center text-[11px]/[15px] text-neutral-900/55 dark:text-neutral-100/55">
-              Session expires after 5 minutes.
+              Session expires after 5 minutes. API still requires lock tokens for
+              Approve / Send.
             </p>
           </motion.section>
         </motion.main>

@@ -43,11 +43,13 @@ the UI in separate terminal windows:
 
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
 
-The desk has a compact MVP lock screen with PIN `0000`; an unlocked browser
-session expires after five minutes. This is only a UI convenience lock. The
-local database remains regular SQLite so it can be opened in TablePlus or
-SQLiteStudio; use Windows user permissions and disk encryption for machine-level
-protection.
+The desk has a compact MVP lock screen that checks `OFFICER_PIN` via
+`POST /auth/officer` (empty PIN in `.env` accepts any value for local demo).
+An unlocked browser session expires after five minutes — this is a UI gate only;
+Approve / Send still need one-time confirm tokens. The local database remains
+regular SQLite so it can be opened in TablePlus or SQLiteStudio; use OS user
+permissions and disk encryption for machine-level protection. Do not store full
+passport numbers in SQLite without masking.
 
 ## Pipeline
 

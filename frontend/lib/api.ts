@@ -78,6 +78,16 @@ export type ApplicationDetail = {
   } | null;
 };
 
+export async function postOfficerAuth(pin: string, officer = "Gloria") {
+  return request<{ ok: boolean; officer: string; session: string }>(
+    "/auth/officer",
+    {
+      method: "POST",
+      body: JSON.stringify({ pin, officer }),
+    },
+  );
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
