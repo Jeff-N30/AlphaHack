@@ -148,6 +148,22 @@ def _pdf_render_pages(path: Path) -> list[Image.Image]:
     return images
 
 
+def render_page_png(path: Path | str, *, page: int = 1) -> bytes:
+    """Rasterize one page for Gloria's desk (PDF page or image → PNG bytes)."""
+    path = Path(path)
+    if not path.exists() or not allowed_suffix(path):
+        raise FileNotFoundError(path.name)
+    suffix = path.suffix.lower()
+    if suffix in {".png", ".jpg", ".jpeg"}:
+        img = _normalize_image(Image.open(path))
+        return _image_to_png_bytes(img)
+    images = _pdf_render_pages(path)
+    if not images:
+        raise FileNotFoundError(f"{path.name}: empty pdf")
+    idx = max(0, min(page - 1, len(images) - 1))
+    return _image_to_png_bytes(images[idx])
+
+
 def read_preview(path: Path | str, *, max_pages: int = 4, ocr_lang: str = "eng") -> DocumentPreview:
     """Build text preview for a single uploaded file (PDF or image)."""
     path = Path(path)

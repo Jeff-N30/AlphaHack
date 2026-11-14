@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import {
   fetchApplication,
   fetchApplications,
+  filePagePreviewUrl,
   filePreviewUrl,
   postEmailInboxRead,
   postGloriaAction,
@@ -142,6 +143,10 @@ const fadeBottomOnPaper =
   "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-900";
 const fadeBottomOnTray =
   "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-900";
+const fadeBottom =
+  "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-950";
+const skeleton =
+  "rounded-[var(--rb-r-sm,6px)] bg-neutral-900/8 dark:bg-neutral-100/8";
 const emptyTitle =
   "text-[16px]/[20px] font-[450] tracking-[-0.015em] text-neutral-900 dark:text-neutral-100";
 const emptyDescription =
@@ -492,6 +497,71 @@ function NavigationFrame({
   );
 }
 
+function DocPagePreview({
+  applicationId,
+  filename,
+}: {
+  applicationId: string;
+  filename: string;
+}) {
+  const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
+  const src = filePagePreviewUrl(applicationId, filename, 1);
+  const isPdf = filename.toLowerCase().endsWith(".pdf");
+
+  return (
+    <div className="border-t border-neutral-900/8 dark:border-neutral-100/8">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span className={cx(typeCaption, text3, "min-w-0 flex-1 truncate")}>
+          {filename}
+          {isPdf ? " · page 1" : ""}
+        </span>
+        <a
+          href={filePreviewUrl(applicationId, filename)}
+          target="_blank"
+          rel="noreferrer"
+          className={cx(ghostButtonMuted, buttonSm)}
+        >
+          Original
+        </a>
+      </div>
+      <div className="relative min-h-[14rem] bg-neutral-100 px-2 pb-2 dark:bg-neutral-950">
+        {status === "loading" ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-2 z-10 flex flex-col gap-2 rounded-[var(--rb-r-sm,6px)] p-4"
+          >
+            <span className={cx(skeleton, "block h-3 w-[40%]")} />
+            <span className={cx(skeleton, "mt-2 block h-[10rem] w-full")} />
+            <span className={cx(skeleton, "block h-2.5 w-[70%]")} />
+            <span className={cx(skeleton, "block h-2.5 w-[55%]")} />
+          </div>
+        ) : null}
+        {status === "err" ? (
+          <p className={cx(typeCaption, text3, "px-2 py-8 text-center")}>
+            Preview unavailable — open Original
+          </p>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={filename}
+            onLoad={() => setStatus("ok")}
+            onError={() => setStatus("err")}
+            ref={(el) => {
+              // Cached images can fire before React attaches onLoad
+              if (el?.complete && el.naturalWidth > 0) setStatus("ok");
+            }}
+            className={cx(
+              "relative z-0 mx-auto max-h-[28rem] w-full object-contain transition-opacity duration-150",
+              status === "ok" ? "opacity-100" : "opacity-0",
+            )}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ApprovalPanel({
   applicationId,
   onDone,
@@ -535,10 +605,26 @@ function ApprovalPanel({
   );
   const draft = audit?.drafts?.[0];
   const files = detailQuery.data?.files ?? [];
+  const fileKey = files.join("\0");
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   const alreadyDecided =
     Boolean(meta?.status?.startsWith("approved")) ||
     Boolean(meta?.status?.startsWith("sent_back"));
+
+  // Demo: always show a document — prefer passport image, else first file
+  useEffect(() => {
+    if (!files.length) {
+      setPreviewFile(null);
+      return;
+    }
+    setPreviewFile((cur) => {
+      if (cur && files.includes(cur)) return cur;
+      const passport = files.find((f) => /passport/i.test(f));
+      return passport ?? files[0];
+    });
+    // fileKey tracks membership; files is derived from the same query data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId, fileKey]);
 
   return (
     <motion.div
@@ -564,10 +650,32 @@ function ApprovalPanel({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
         {detailQuery.isLoading ? (
-          <div className={cx(typeBodySm, text3, "flex items-center gap-2")}>
-            <HugeiconsIcon icon={Loading03Icon} size={14} className="animate-spin" />
-            Loading file…
-          </div>
+          <section className={panel} aria-busy="true" aria-label="Loading file">
+            <div className={cx(panelHead, "h-10")}>
+              <span className={cx(skeleton, "h-5 w-20")} />
+              <span className={cx(skeleton, "h-4 w-24")} />
+            </div>
+            <div className={cx(panelBody, "space-y-3 p-4")}>
+              <span className={cx(skeleton, "block h-4 w-[80%] max-w-[280px]")} />
+              <span className={cx(skeleton, "block h-3 w-[66%] max-w-[200px]")} />
+              <div className="space-y-2 pt-1">
+                {[0.9, 0.7, 0.5].map((op, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2"
+                    style={{ opacity: op }}
+                  >
+                    <span className={cx(skeleton, "size-3.5 shrink-0")} />
+                    <span className={cx(skeleton, "h-2.5 flex-1")} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <span className={cx(skeleton, "h-7 w-20")} />
+                <span className={cx(skeleton, "h-7 w-24")} />
+              </div>
+            </div>
+          </section>
         ) : (
           <>
             <section className={panel}>
@@ -764,6 +872,51 @@ function ApprovalPanel({
               )}
             </section>
 
+            {files.length > 0 ? (
+              <section className={panel}>
+                <div className={cx(panelHead, "h-10")}>
+                  <span className={inkSlot}>Docs</span>
+                  <span className={cx(frameTitle, "flex-1")}>
+                    Images &amp; PDFs
+                  </span>
+                  <span className={cx(typeCaption, text3)}>
+                    {files.length}
+                  </span>
+                </div>
+                <div className={cx(panelBody, "gap-0 p-0")}>
+                  <ul className="flex gap-1.5 overflow-x-auto px-3 py-2">
+                    {files.map((f) => (
+                      <li key={f} className="shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewFile(f)}
+                          className={cx(
+                            inkSlot,
+                            hoverFill,
+                            pressedFill,
+                            transition,
+                            focusRing,
+                            "max-w-[11rem] cursor-pointer truncate",
+                            previewFile === f &&
+                              "border-neutral-900/40 dark:border-neutral-100/40",
+                          )}
+                        >
+                          {f}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {previewFile ? (
+                    <DocPagePreview
+                      key={previewFile}
+                      applicationId={applicationId}
+                      filename={previewFile}
+                    />
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
             {draft?.body ? (
               <section className={panel}>
                 <div className={cx(panelHead, "h-10")}>
@@ -790,74 +943,6 @@ function ApprovalPanel({
                   </p>
                 </div>
               </section>
-            ) : null}
-
-            {files.length > 0 ? (
-              <div>
-                <p className={cx(typeCaption, text3, "mb-2")}>Documents</p>
-                <ul className="flex flex-wrap gap-1.5">
-                  {files.map((f) => (
-                    <li key={f}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPreviewFile((cur) => (cur === f ? null : f))
-                        }
-                        className={cx(
-                          inkSlot,
-                          hoverFill,
-                          pressedFill,
-                          transition,
-                          focusRing,
-                          "max-w-full cursor-pointer truncate",
-                          previewFile === f &&
-                            "border-neutral-900/40 dark:border-neutral-100/40",
-                        )}
-                      >
-                        {f}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {previewFile ? (
-                  <div
-                    className={cx(
-                      panel,
-                      "mt-2 overflow-hidden",
-                    )}
-                  >
-                    <div className={cx(panelHead, "h-9")}>
-                      <span className={cx(frameTitle, "flex-1 truncate")}>
-                        {previewFile}
-                      </span>
-                      <a
-                        href={filePreviewUrl(applicationId, previewFile)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={cx(ghostButtonMuted, buttonSm)}
-                      >
-                        Open
-                      </a>
-                    </div>
-                    <div className={cx(panelBody, "mb-1 bg-neutral-100 dark:bg-neutral-950")}>
-                      {previewFile.toLowerCase().endsWith(".pdf") ? (
-                        <iframe
-                          title={previewFile}
-                          src={filePreviewUrl(applicationId, previewFile)}
-                          className="h-64 w-full border-0"
-                        />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={filePreviewUrl(applicationId, previewFile)}
-                          alt={previewFile}
-                          className="max-h-64 w-full object-contain"
-                        />
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
             ) : null}
           </>
         )}
@@ -1259,13 +1344,31 @@ export default function VisaRefShell() {
                           {(listQuery.error as Error).message}
                         </p>
                       ) : listQuery.isLoading ? (
-                        <div className={cx(typeBodySm, text3, "flex items-center gap-2 px-2 py-3")}>
-                          <HugeiconsIcon
-                            icon={Loading03Icon}
-                            size={14}
-                            className="animate-spin"
-                          />
-                          Loading queue…
+                        <div
+                          className={panel}
+                          aria-busy="true"
+                          aria-label="Loading queue"
+                        >
+                          <div className={cx(panelHead, "h-10")}>
+                            <span className={cx(skeleton, "h-4 w-16")} />
+                            <span className={cx(skeleton, "ms-auto h-3.5 w-8")} />
+                          </div>
+                          <ul className={cx(panelBody, "mb-1", rowsRuled)}>
+                            {[0.95, 0.75, 0.55, 0.4].map((op, i) => (
+                              <li
+                                key={i}
+                                className="flex items-center gap-3 px-3.5 py-2.5"
+                                style={{ opacity: op }}
+                              >
+                                <span className={cx(skeleton, "size-8 shrink-0")} />
+                                <span className="min-w-0 flex-1 space-y-1.5">
+                                  <span className={cx(skeleton, "block h-3.5 w-[55%]")} />
+                                  <span className={cx(skeleton, "block h-2.5 w-[70%]")} />
+                                </span>
+                                <span className={cx(skeleton, "h-2.5 w-12 shrink-0")} />
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       ) : filtered.length === 0 ? (
                         <div className={cx(panel, "h-full")}>
@@ -1451,10 +1554,39 @@ export default function VisaRefShell() {
                               </span>
                             </div>
                             <div className={cx(panelBody, "mb-1 flex flex-1 flex-col p-1")}>
+                              <div className="relative px-3 pt-3">
+                                <div
+                                  aria-hidden
+                                  className="pointer-events-none select-none space-y-2.5"
+                                >
+                                  <span className={cx(skeleton, "block h-3.5 w-[75%]")} />
+                                  <span className={cx(skeleton, "block h-2.5 w-[50%]")} />
+                                  <div className="space-y-1.5 pt-1">
+                                    {[0.8, 0.55].map((op, i) => (
+                                      <div
+                                        key={i}
+                                        className="flex items-center gap-2"
+                                        style={{ opacity: op }}
+                                      >
+                                        <span className={cx(skeleton, "size-3 shrink-0")} />
+                                        <span className={cx(skeleton, "h-2 flex-1")} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div
+                                  aria-hidden
+                                  className={cx(
+                                    fadeBottom,
+                                    "pointer-events-none absolute inset-x-0 bottom-0 h-10",
+                                  )}
+                                />
+                              </div>
                               <div className="px-3.5 pt-4 pb-2">
-                                <p className={emptyTitle}>Select a file</p>
+                                <p className={emptyTitle}>Select a file from the left</p>
                                 <p className={cx(emptyDescription, "mt-1 text-pretty")}>
-                                  Approve, send back, or flag — AI never decides alone.
+                                  The audit and Approve / Send back controls open in this
+                                  panel.
                                 </p>
                               </div>
                               <ul className="mt-auto grid gap-1">

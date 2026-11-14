@@ -93,6 +93,15 @@ export function filePreviewUrl(applicationId: string, filename: string) {
   return `${API_URL}/applications/${applicationId}/files/${encodeURIComponent(filename)}`;
 }
 
+/** Always PNG — PDF page 1 rendered, or the image itself. Best for in-desk demo. */
+export function filePagePreviewUrl(
+  applicationId: string,
+  filename: string,
+  page = 1,
+) {
+  return `${API_URL}/applications/${applicationId}/files/${encodeURIComponent(filename)}/page/${page}`;
+}
+
 export async function postConfirmToken(
   applicationId: string,
   action: "approve" | "send_back" | "review",

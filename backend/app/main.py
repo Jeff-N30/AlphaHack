@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from pydantic import BaseModel, Field
 
@@ -132,16 +132,48 @@ def get_application(application_id: str) -> dict:
         raise HTTPException(404, "application not found") from exc
 
 
+_MEDIA = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
+
 @app.get("/applications/{application_id}/files/{filename}")
 def get_application_file(application_id: str, filename: str):
-    """Document preview (PDF/PNG) for Gloria's desk."""
+    """Original document (PDF / PNG / JPEG) for Gloria's desk."""
     try:
         load_meta(application_id)
         path = resolve_application_file(application_id, filename)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc) or "file not found") from exc
-    media = "application/pdf" if path.suffix.lower() == ".pdf" else None
-    return FileResponse(path, filename=path.name, media_type=media)
+    media = _MEDIA.get(path.suffix.lower(), "application/octet-stream")
+    # inline = show in browser/desk; attachment would force download
+    return FileResponse(
+        path,
+        media_type=media,
+        filename=path.name,
+        content_disposition_type="inline",
+    )
+
+
+@app.get("/applications/{application_id}/files/{filename}/page/{page}")
+def get_application_file_page(application_id: str, filename: str, page: int = 1):
+    """Raster page preview (PNG) — works for scanned PDFs and passport images."""
+    from app.ingest.render import render_page_png
+
+    if page < 1:
+        raise HTTPException(400, "page must be >= 1")
+    try:
+        load_meta(application_id)
+        path = resolve_application_file(application_id, filename)
+        png = render_page_png(path, page=page)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc) or "file not found") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(422, f"could not render page: {exc}") from exc
+    return Response(content=png, media_type="image/png")
 
 
 class ConfirmTokenBody(BaseModel):
