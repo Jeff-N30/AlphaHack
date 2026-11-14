@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
+from app.storage.db import register_application, register_document
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -52,6 +53,7 @@ def create_application(
         "status": "created",
     }
     (root / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    register_application(meta, settings)
     return meta
 
 
@@ -83,6 +85,13 @@ def store_upload(
         stem, suf = dest.stem, dest.suffix
         dest = dest_dir / f"{stem}_{uuid.uuid4().hex[:6]}{suf}"
     dest.write_bytes(data)
+    register_document(
+        application_id=application_id,
+        filename=filename,
+        path=dest,
+        data=data,
+        settings=settings,
+    )
     meta = load_meta(application_id, settings)
     meta.setdefault("files", []).append({"name": dest.name, "bytes": len(data)})
     save_meta(meta, settings)

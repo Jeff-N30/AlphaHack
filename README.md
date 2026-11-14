@@ -13,7 +13,7 @@ Never: Gemini, WhatsApp, or TLS upload — Gloria takes the file to TLS herself.
 | `checklists/fr-schengen-short-stay.yaml` | France rules (code, not AI) |
 | `eval/cases/` | Fake applicants for seed + tests |
 | `.env` | Secrets (from `.env.example`) — not in git |
-| `data/` | Runtime apps + inbox (gitignored) |
+| `data/` | Local SQLite metadata database, runtime apps + inbox (gitignored) |
 
 ## Run
 
