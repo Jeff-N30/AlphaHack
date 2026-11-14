@@ -10,10 +10,13 @@ from datetime import date
 from app.models import (
     ApplicationFormExtraction,
     BankStatementExtraction,
+    EmploymentLetterExtraction,
+    FamilyRegisterExtraction,
     FlightBookingExtraction,
     FlightSegment,
     HotelBookingExtraction,
     Money,
+    PayslipExtraction,
     Transaction,
     TravelInsuranceExtraction,
 )
@@ -107,5 +110,40 @@ FIXTURE_BANK = BankStatementExtraction(
         Transaction(date=date(2025, 11, 28), description="SALARY", amount=1800.0),
         Transaction(date=date(2025, 12, 28), description="SALARY", amount=1800.0),
     ],
+    field_meta={},
+)
+
+FIXTURE_EMPLOYMENT = EmploymentLetterExtraction(
+    language="en",
+    anomaly_flags=[],
+    employee_name="JEFF DEMO NADER",
+    employer_name="Specimen Soft SAL (FAKE)",
+    position="Software Engineer",
+    hire_date=date(2022, 3, 1),
+    monthly_salary=Money(amount=1800.0, currency="USD"),
+    leave_start=date(2026, 2, 4),
+    leave_end=date(2026, 2, 10),
+    letter_date=date(2026, 1, 20),
+    signed_and_stamped=True,
+    field_meta={},
+)
+
+FIXTURE_PAYSLIP = PayslipExtraction(
+    language="en",
+    anomaly_flags=[],
+    employee_name="JEFF DEMO NADER",
+    employer_name="Specimen Soft SAL (FAKE)",
+    period_month="2026-01",
+    net_pay=Money(amount=1800.0, currency="USD"),
+    field_meta={},
+)
+
+FIXTURE_FAMILY_REGISTER = FamilyRegisterExtraction(
+    language="en",
+    anomaly_flags=[],
+    head_of_family="NADER JOSEPH",
+    members=["JEFF DEMO NADER"],
+    issue_date=date(2026, 6, 15),
+    translated=True,
     field_meta={},
 )

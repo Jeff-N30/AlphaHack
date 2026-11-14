@@ -1,4 +1,4 @@
-"""VisaRef API — intake + preview/classify/MRZ slice."""
+"""VisaRef API — intake + Gloria desk + human lock."""
 from __future__ import annotations
 
 import asyncio
@@ -10,16 +10,22 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from pydantic import BaseModel, Field
 
-from app.api_applications import get_application_detail, list_applications, mark_gloria_action
+from app.api_applications import (
+    get_application_detail,
+    list_applications,
+    resolve_application_file,
+)
 from app.config import get_settings
 from app.ingest.email_pipeline import process_visa_inbox
 from app.ingest.email_watcher import watch_email_inbox
 from app.ingest.pipeline import process_application
 from app.ingest.render import allowed_suffix
+from app.lock.actions import LockError, approve_application, mark_review, send_draft
+from app.lock.tokens import issue_confirm_token
 from app.storage.files import create_application, load_meta, store_upload
 
 logger = logging.getLogger(__name__)
@@ -126,100 +132,159 @@ def get_application(application_id: str) -> dict:
         raise HTTPException(404, "application not found") from exc
 
 
-class GloriaActionBody(BaseModel):
+@app.get("/applications/{application_id}/files/{filename}")
+def get_application_file(application_id: str, filename: str):
+    """Document preview (PDF/PNG) for Gloria's desk."""
+    try:
+        load_meta(application_id)
+        path = resolve_application_file(application_id, filename)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc) or "file not found") from exc
+    media = "application/pdf" if path.suffix.lower() == ".pdf" else None
+    return FileResponse(path, filename=path.name, media_type=media)
+
+
+class ConfirmTokenBody(BaseModel):
+    application_id: str
     action: str = Field(..., description="approve | send_back | review")
     officer: str = Field(default="Gloria", min_length=1, max_length=80)
 
 
+class GloriaActionBody(BaseModel):
+    action: str = Field(..., description="approve | send_back | review")
+    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+    confirm_token: str = Field(..., min_length=8)
+    draft_id: str | None = None
+
+
+class OfficerAuthBody(BaseModel):
+    pin: str = Field(..., min_length=1, max_length=32)
+    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+
+
+@app.post("/auth/officer")
+def auth_officer(body: OfficerAuthBody) -> dict:
+    """PIN gate for Gloria. Empty OFFICER_PIN in .env → demo accepts any pin."""
+    settings = get_settings()
+    expected = (settings.officer_pin or "").strip()
+    if expected and body.pin.strip() != expected:
+        raise HTTPException(401, "invalid officer PIN")
+    return {
+        "ok": True,
+        "officer": body.officer.strip() or settings.officer_name,
+        "session": "demo" if not expected else "pin_ok",
+    }
+
+
+@app.post("/confirm-tokens")
+def create_confirm_token(body: ConfirmTokenBody) -> dict:
+    action = body.action.lower().strip()
+    if action not in {"approve", "send_back", "review"}:
+        raise HTTPException(400, "action must be approve | send_back | review")
+    try:
+        load_meta(body.application_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    row = issue_confirm_token(
+        application_id=body.application_id,
+        action=action,
+        officer=body.officer.strip() or "Gloria",
+    )
+    return {
+        "token": row.token,
+        "application_id": row.application_id,
+        "action": row.action,
+        "expires_in_s": 120,
+    }
+
+
 @app.post("/applications/{application_id}/gloria-action")
 def gloria_action(application_id: str, body: GloriaActionBody) -> dict:
-    """Human-click lock (demo): Approve / Send back / Keep reviewing."""
+    """Human-click lock: Approve / Send back / Flag — requires one-time confirm_token."""
     try:
         load_meta(application_id)
     except FileNotFoundError as exc:
         raise HTTPException(404, "application not found") from exc
+    officer = body.officer.strip() or "Gloria"
+    action = body.action.lower().strip()
     try:
-        meta = mark_gloria_action(
-            application_id, action=body.action, officer=body.officer.strip() or "Gloria"
-        )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    return {"meta": meta}
-
-
-def _demo_llama_extract(case_dir: Path) -> dict:
-    """Run Llama (Ollama) field extract on case PDFs — shown on /demo for recording."""
-    from app.config import Settings
-    from app.extract.extract import (
-        extract_application_form,
-        extract_bank,
-        extract_flight,
-        extract_hotel,
-        extract_insurance,
-    )
-    from app.ingest.render import read_preview
-
-    settings = get_settings()
-    # Prefer live/cache; if unset keys / offline flag, fixtures still return typed JSON for the UI
-    docs_dir = case_dir / "docs"
-    out: dict[str, object] = {
-        "provider": settings.extract_provider,
-        "model": settings.extract_model,
-        "demo_offline": settings.demo_offline,
-        "docs": {},
-    }
-    mapping = [
-        ("flight_booking.pdf", "flight_booking", extract_flight),
-        ("travel_insurance.pdf", "travel_insurance", extract_insurance),
-        ("application_form.pdf", "application_form", extract_application_form),
-        ("hotel_booking.pdf", "hotel_booking", extract_hotel),
-        ("bank_statement.pdf", "bank_statement", extract_bank),
-    ]
-    for fname, key, fn in mapping:
-        path = docs_dir / fname
-        if not path.exists():
-            continue
-        try:
-            prev = read_preview(path, max_pages=4)
-            extracted = fn(prev.text, source=path, settings=settings)
-            out["docs"][key] = extracted.model_dump(mode="json")  # type: ignore[index]
-        except Exception as exc:  # noqa: BLE001 — demo UI must still render
-            logger.warning("demo llama extract %s failed: %s", key, exc)
-            # Fall back to offline fixture so the screen always shows Llama-shaped output
-            offline = Settings(
-                data_dir=settings.data_dir,
-                checklist_dir=settings.checklist_dir,
-                demo_offline=True,
-                extract_provider="ollama",
-                extract_model=settings.extract_model,
-                prompt_version=settings.prompt_version + "+demo-fallback",
+        if action == "approve":
+            meta = approve_application(
+                application_id, confirm_token=body.confirm_token, officer=officer
             )
-            prev = read_preview(path, max_pages=4) if path.exists() else None
-            text = prev.text if prev else "demo"
-            extracted = fn(text, source=path if path.exists() else None, settings=offline)
-            out["docs"][key] = extracted.model_dump(mode="json")  # type: ignore[index]
-            out["fallback"] = True
-    return out
+            return {"meta": meta}
+        if action == "send_back":
+            return send_draft(
+                application_id,
+                confirm_token=body.confirm_token,
+                officer=officer,
+                draft_id=body.draft_id,
+            )
+        if action == "review":
+            meta = mark_review(
+                application_id, confirm_token=body.confirm_token, officer=officer
+            )
+            return {"meta": meta}
+    except LockError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    raise HTTPException(400, "action must be approve | send_back | review")
 
 
 @app.post("/demo/seed-case/{case_id}")
 def seed_case(case_id: str) -> dict:
-    """Load eval case docs → Llama extract → ingest → rules AuditReport."""
+    """Load eval case docs → Llama extract → rules AuditReport (live facts when online)."""
+    from app.drafts.drafter import attach_drafts, first_name_from_docs
+    from app.extract.pipeline_extract import extract_application_docs
     from app.ingest.pipeline import seed_from_eval_case
-    from app.models import Outcome
+    from app.models import DocType, Outcome
     from app.rules.checklist import load_checklist
     from app.rules.engine import run
     from app.rules.facts_from_case import facts_from_case
+    from app.rules.facts_from_extractions import facts_from_extractions
     from app.storage.files import app_dir, load_meta, save_meta
 
     case_dir = _REPO / "eval" / "cases" / case_id
     if not (case_dir / "case.yaml").exists():
         raise HTTPException(404, f"unknown case: {case_id}")
+    settings = get_settings()
     aid = seed_from_eval_case(case_dir)
-    llama = _demo_llama_extract(case_dir)
-    ingest = process_application(aid)
+    ingest = process_application(aid, settings=settings)
+    extractions, llama_docs = extract_application_docs(aid, ingest, settings=settings)
+    llama = {
+        "provider": settings.extract_provider,
+        "model": settings.extract_model,
+        "demo_offline": settings.demo_offline,
+        "docs": llama_docs,
+    }
+
+    # Offline fixtures are Jeff-shaped — keep case.yaml gold facts for reliable demos.
+    # Live Ollama: audit from extracted fields (AI extracts, code decides).
+    if settings.demo_offline:
+        facts = facts_from_case(case_dir)
+        facts_source = "case_yaml_offline"
+    else:
+        facts = facts_from_extractions(
+            extractions,
+            submission_date=date.fromisoformat(
+                load_meta(aid, settings).get("submission_date") or "2026-11-16"
+            ),
+            application_id=aid,
+        )
+        # Thin extract → fall back so Gloria still gets a usable desk file
+        if not (
+            facts.has(DocType.bank_statement)
+            or facts.has(DocType.flight_booking)
+            or facts.has(DocType.application_form)
+        ):
+            facts = facts_from_case(case_dir)
+            facts_source = "case_yaml_fallback"
+            llama["fallback"] = True
+        else:
+            facts_source = "live_extract"
+
     checklist = load_checklist(_REPO / "checklists" / "fr-schengen-short-stay.yaml")
-    audit = run(checklist, facts_from_case(case_dir))
+    audit = run(checklist, facts)
+    attach_drafts(audit, applicant_first_name=first_name_from_docs(llama_docs))
     audit_json = audit.model_dump(mode="json")
 
     if audit.outcome == Outcome.SEND_BACK:
@@ -229,15 +294,17 @@ def seed_case(case_id: str) -> dict:
     else:
         human_status = "awaiting_gloria_approval"
 
-    settings = get_settings()
     meta = load_meta(aid, settings)
     meta["status"] = human_status
     meta["outcome"] = audit.outcome.value
     meta["human_required"] = True
+    meta["case_id"] = case_id
+    meta["facts_source"] = facts_source
     save_meta(meta, settings)
     report = {
         "application_id": aid,
         "case_id": case_id,
+        "facts_source": facts_source,
         "audit": audit_json,
         "human_required": True,
         "human_status": human_status,
@@ -251,6 +318,7 @@ def seed_case(case_id: str) -> dict:
     return {
         "id": aid,
         "case_id": case_id,
+        "facts_source": facts_source,
         "llama_extract": llama,
         "ingest_report": ingest,
         "audit": audit_json,
@@ -267,7 +335,7 @@ def demo_page():
 
 @app.post("/email/inbox/read")
 def read_email_inbox() -> dict[str, object]:
-    """VISA emails → attachments → OCR/MRZ → Llama extract → TLS AuditReport."""
+    """VISA + Llama-triaged emails → OCR/MRZ → Llama extract → TLS AuditReport."""
     try:
         return process_visa_inbox(settings=get_settings())  # type: ignore[return-value]
     except ValueError as exc:

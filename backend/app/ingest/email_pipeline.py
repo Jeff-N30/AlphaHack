@@ -9,14 +9,15 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
-from app.extract.extract import extract_by_type
+from app.drafts.drafter import attach_drafts, first_name_from_docs
+from app.extract.pipeline_extract import extract_application_docs
 from app.ingest.email import SavedEmail, read_matching_emails
 from app.ingest.pipeline import process_application
-from app.ingest.render import allowed_suffix, read_preview
-from app.models import DocType, Extraction, MRZ, Outcome
+from app.ingest.render import allowed_suffix
+from app.models import Outcome
 from app.rules.checklist import load_checklist
 from app.rules.engine import run
-from app.rules.facts_from_extractions import facts_from_extractions, passport_from_mrz
+from app.rules.facts_from_extractions import facts_from_extractions
 from app.storage.files import app_dir, create_application, load_meta, save_meta, store_upload
 
 logger = logging.getLogger(__name__)
@@ -24,20 +25,12 @@ logger = logging.getLogger(__name__)
 _REPO = Path(__file__).resolve().parents[3]
 _CHECKLIST = _REPO / "checklists" / "fr-schengen-short-stay.yaml"
 
-_EXTRACTABLE = {
-    DocType.flight_booking,
-    DocType.travel_insurance,
-    DocType.application_form,
-    DocType.hotel_booking,
-    DocType.bank_statement,
-}
-
 
 def _attachment_paths(message: SavedEmail) -> list[Path]:
     out: list[Path] = []
     for f in message.files:
         path = Path(f)
-        if path.name in {"message.eml", "body.txt"}:
+        if path.name in {"message.eml", "body.txt", "triage.json"}:
             continue
         if allowed_suffix(path):
             out.append(path)
@@ -51,7 +44,7 @@ def process_email_message(
     submission_date: date | None = None,
     checklist_id: str = "fr-schengen-short-stay",
 ) -> dict[str, Any]:
-    """One VISA email → ingest + Llama fields + AuditReport."""
+    """One VISA / Llama-triaged email → ingest + Llama fields + AuditReport."""
     settings = settings or get_settings()
     sub = submission_date or date.today()
     paths = _attachment_paths(message)
@@ -67,48 +60,7 @@ def process_email_message(
         saved.append(path.name)
 
     ingest = process_application(aid, settings=settings)
-    extractions: list[Extraction] = []
-    llama_docs: dict[str, Any] = {}
-
-    # Passport from MRZ (code)
-    for entry in ingest.get("files") or []:
-        mrz_raw = entry.get("mrz")
-        if not mrz_raw:
-            continue
-        try:
-            mrz = MRZ.model_validate(mrz_raw)
-            extractions.append(passport_from_mrz(mrz))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("bad MRZ on %s: %s", entry.get("file"), exc)
-
-    # Llama extract for classified / known doc types
-    raw = app_dir(aid, settings) / "raw"
-    for entry in ingest.get("files") or []:
-        if entry.get("rejected"):
-            continue
-        fname = entry.get("file") or ""
-        path = raw / fname
-        if not path.exists():
-            continue
-        cls = (entry.get("classification") or {}).get("doc_type")
-        try:
-            dtype = DocType(cls) if cls else DocType.unknown
-        except ValueError:
-            dtype = DocType.unknown
-        if dtype not in _EXTRACTABLE:
-            from app.extract.classify import classify_document
-
-            prev = read_preview(path, max_pages=4)
-            dtype = classify_document(prev.text, filename=fname, settings=settings).doc_type
-        if dtype not in _EXTRACTABLE:
-            continue
-        try:
-            prev = read_preview(path, max_pages=6)
-            ex = extract_by_type(dtype, prev.text, source=path, settings=settings)
-            extractions.append(ex)
-            llama_docs[dtype.value] = ex.model_dump(mode="json")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("extract failed %s: %s", fname, exc)
+    extractions, llama_docs = extract_application_docs(aid, ingest, settings=settings)
 
     facts = facts_from_extractions(
         extractions,
@@ -117,8 +69,8 @@ def process_email_message(
     )
     checklist = load_checklist(_CHECKLIST)
     audit = run(checklist, facts)
+    attach_drafts(audit, applicant_first_name=first_name_from_docs(llama_docs))
 
-    # Human lock: pipeline never Approve/Send — only mark what Gloria must do
     if audit.outcome == Outcome.SEND_BACK:
         human_status = "awaiting_gloria_send_back"
         human_action = "Gloria: review FAILs and send the request draft (not auto-sent)."
@@ -135,12 +87,16 @@ def process_email_message(
     meta["human_required"] = True
     meta["human_action"] = human_action
     meta["email_uid"] = message.uid
+    meta["email_source"] = message.source
+    if message.person_name and message.person_name != "unknown":
+        meta["triage_person_name"] = message.person_name
     save_meta(meta, settings)
 
     report = {
         "email_uid": message.uid,
         "subject": message.subject,
         "sender": message.sender,
+        "email_source": message.source,
         "application_id": aid,
         "files": saved,
         "human_required": True,
@@ -158,7 +114,8 @@ def process_email_message(
     out_path = app_dir(aid, settings) / "email_pipeline_report.json"
     out_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     print(
-        f"VISA app {aid}: outcome={audit.outcome.value} → {human_status} (Gloria must act)",
+        f"VISA app {aid}: outcome={audit.outcome.value} → {human_status} "
+        f"(source={message.source}; Gloria must act)",
         flush=True,
     )
     return report
@@ -171,19 +128,77 @@ def process_visa_inbox(
     started_after: datetime | None = None,
     max_messages: int | None = None,
 ) -> dict[str, Any]:
-    """Poll IMAP for VISA mails and run the full pipeline on each."""
+    """Poll IMAP for VISA + Llama-triaged mails and run the full pipeline on each."""
     settings = settings or get_settings()
     messages = read_matching_emails(
         settings,
         started_after=started_after,
         max_messages=max_messages,
     )
-    messages = [message for message in messages if message.source == "subject_filter"]
-    results = [
-        process_email_message(m, settings=settings, submission_date=submission_date) for m in messages
+    # subject_filter (VISA in subject) + llama_triage (empty/other subject, related)
+    messages = [
+        m
+        for m in messages
+        if m.source in {"subject_filter", "llama_triage"}
     ]
+    results = [
+        process_email_message(m, settings=settings, submission_date=submission_date)
+        for m in messages
+    ]
+    # Also promote any folders already sitting in needs_review/
+    promoted = promote_needs_review(settings=settings, submission_date=submission_date)
     return {
-        "count": len(results),
+        "count": len(results) + int(promoted.get("count") or 0),
         "subject_filter": settings.email_subject_filter,
-        "results": results,
+        "imap_results": results,
+        "needs_review_promoted": promoted,
+        "results": results + list(promoted.get("results") or []),
     }
+
+
+def promote_needs_review(
+    *,
+    settings: Settings | None = None,
+    submission_date: date | None = None,
+) -> dict[str, Any]:
+    """Turn email_inbox/needs_review/* folders into Gloria queue applications."""
+    settings = settings or get_settings()
+    review_root = settings.data_dir / "email_inbox" / "needs_review"
+    if not review_root.exists():
+        return {"count": 0, "results": []}
+    results: list[dict[str, Any]] = []
+    for folder in sorted(review_root.iterdir()):
+        if not folder.is_dir():
+            continue
+        marker = folder / ".promoted.json"
+        if marker.exists():
+            continue
+        files = tuple(
+            str(p)
+            for p in sorted(folder.iterdir())
+            if p.is_file() and p.name not in {".promoted.json"}
+        )
+        if not any(allowed_suffix(Path(f)) for f in files):
+            continue
+        uid = folder.name.rsplit("_", 1)[-1] if "_" in folder.name else folder.name
+        message = SavedEmail(
+            uid=f"needs_review:{uid}",
+            subject="(needs_review)",
+            sender="",
+            received_at="",
+            files=files,
+            person_name=folder.name,
+            source="llama_triage",
+        )
+        try:
+            report = process_email_message(
+                message, settings=settings, submission_date=submission_date
+            )
+            marker.write_text(
+                json.dumps({"application_id": report.get("application_id")}, indent=2),
+                encoding="utf-8",
+            )
+            results.append(report)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("promote needs_review %s failed: %s", folder.name, exc)
+    return {"count": len(results), "results": results}

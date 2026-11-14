@@ -11,18 +11,24 @@ from app.extract import prompts
 from app.extract.fixtures import (
     FIXTURE_APPLICATION_FORM,
     FIXTURE_BANK,
+    FIXTURE_EMPLOYMENT,
+    FIXTURE_FAMILY_REGISTER,
     FIXTURE_FLIGHT,
     FIXTURE_HOTEL,
     FIXTURE_INSURANCE,
+    FIXTURE_PAYSLIP,
 )
 from app.extract.llm import extract_structured
 from app.models import (
     ApplicationFormExtraction,
     BankStatementExtraction,
     DocType,
+    EmploymentLetterExtraction,
     Extraction,
+    FamilyRegisterExtraction,
     FlightBookingExtraction,
     HotelBookingExtraction,
+    PayslipExtraction,
     TravelInsuranceExtraction,
 )
 
@@ -117,6 +123,60 @@ def extract_bank(
     )
 
 
+def extract_employment(
+    text: str,
+    *,
+    source: bytes | str | Path | None = None,
+    settings: Settings | None = None,
+) -> EmploymentLetterExtraction:
+    settings = settings or get_settings()
+    return extract_structured(
+        schema=EmploymentLetterExtraction,
+        system=prompts.SYSTEM,
+        user=prompts.EMPLOYMENT_USER.replace("<<<TEXT>>>", text[:20_000]),
+        step="extract:employment_letter",
+        content_for_cache=_cache_src(source, text),
+        offline_fixture=FIXTURE_EMPLOYMENT,
+        settings=settings,
+    )
+
+
+def extract_payslip(
+    text: str,
+    *,
+    source: bytes | str | Path | None = None,
+    settings: Settings | None = None,
+) -> PayslipExtraction:
+    settings = settings or get_settings()
+    return extract_structured(
+        schema=PayslipExtraction,
+        system=prompts.SYSTEM,
+        user=prompts.PAYSLIP_USER.replace("<<<TEXT>>>", text[:20_000]),
+        step="extract:payslip",
+        content_for_cache=_cache_src(source, text),
+        offline_fixture=FIXTURE_PAYSLIP,
+        settings=settings,
+    )
+
+
+def extract_family_register(
+    text: str,
+    *,
+    source: bytes | str | Path | None = None,
+    settings: Settings | None = None,
+) -> FamilyRegisterExtraction:
+    settings = settings or get_settings()
+    return extract_structured(
+        schema=FamilyRegisterExtraction,
+        system=prompts.SYSTEM,
+        user=prompts.FAMILY_REGISTER_USER.replace("<<<TEXT>>>", text[:20_000]),
+        step="extract:family_register",
+        content_for_cache=_cache_src(source, text),
+        offline_fixture=FIXTURE_FAMILY_REGISTER,
+        settings=settings,
+    )
+
+
 def extract_by_type(
     doc_type: DocType,
     text: str,
@@ -134,9 +194,13 @@ def extract_by_type(
         return extract_hotel(text, source=source, settings=settings)
     if doc_type == DocType.bank_statement:
         return extract_bank(text, source=source, settings=settings)
-    raise NotImplementedError(
-        f"LLM extract not wired yet for {doc_type.value} (employment/payslip next)"
-    )
+    if doc_type == DocType.employment_letter:
+        return extract_employment(text, source=source, settings=settings)
+    if doc_type == DocType.payslip:
+        return extract_payslip(text, source=source, settings=settings)
+    if doc_type == DocType.family_register:
+        return extract_family_register(text, source=source, settings=settings)
+    raise NotImplementedError(f"LLM extract not wired for {doc_type.value}")
 
 
 def _cache_src(source: bytes | str | Path | None, text: str) -> bytes | str:

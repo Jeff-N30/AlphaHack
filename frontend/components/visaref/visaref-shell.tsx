@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import {
   fetchApplication,
   fetchApplications,
+  filePreviewUrl,
   postEmailInboxRead,
   postGloriaAction,
   postSeedCase,
@@ -709,7 +710,9 @@ function ApprovalPanel({
   const lookItems = results.filter((r) =>
     ["FAIL", "NEEDS_HUMAN"].includes((r.status ?? "").toUpperCase()),
   );
+  const draft = audit?.drafts?.[0];
   const files = detailQuery.data?.files ?? [];
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
   const alreadyDecided =
     Boolean(meta?.status?.startsWith("approved")) ||
     Boolean(meta?.status?.startsWith("sent_back"));
@@ -938,16 +941,99 @@ function ApprovalPanel({
               )}
             </section>
 
+            {draft?.body ? (
+              <section className={panel}>
+                <div className={cx(panelHead, "h-10")}>
+                  <span className={inkSlot}>Draft</span>
+                  <span className={cx(frameTitle, "flex-1")}>
+                    Send-back message
+                  </span>
+                  <span className={cx(typeCaption, text3)}>
+                    {draft.status || "DRAFT"}
+                  </span>
+                </div>
+                <div className={cx(panelBody, "p-3")}>
+                  <pre
+                    className={cx(
+                      typeBodySm,
+                      text2,
+                      "whitespace-pre-wrap font-sans",
+                    )}
+                  >
+                    {draft.body}
+                  </pre>
+                  <p className={cx(typeCaption, text3, "mt-2")}>
+                    Confirm Send back to copy this for email — not auto-sent.
+                  </p>
+                </div>
+              </section>
+            ) : null}
+
             {files.length > 0 ? (
               <div>
                 <p className={cx(typeCaption, text3, "mb-2")}>Documents</p>
                 <ul className="flex flex-wrap gap-1.5">
                   {files.map((f) => (
-                    <li key={f} className={cx(inkSlot, "max-w-full truncate")}>
-                      {f}
+                    <li key={f}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewFile((cur) => (cur === f ? null : f))
+                        }
+                        className={cx(
+                          inkSlot,
+                          hoverFill,
+                          pressedFill,
+                          transition,
+                          focusRing,
+                          "max-w-full cursor-pointer truncate",
+                          previewFile === f &&
+                            "border-neutral-900/40 dark:border-neutral-100/40",
+                        )}
+                      >
+                        {f}
+                      </button>
                     </li>
                   ))}
                 </ul>
+                {previewFile ? (
+                  <div
+                    className={cx(
+                      panel,
+                      "mt-2 overflow-hidden",
+                    )}
+                  >
+                    <div className={cx(panelHead, "h-9")}>
+                      <span className={cx(frameTitle, "flex-1 truncate")}>
+                        {previewFile}
+                      </span>
+                      <a
+                        href={filePreviewUrl(applicationId, previewFile)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cx(ghostButtonMuted, buttonSm)}
+                      >
+                        Open
+                      </a>
+                    </div>
+                    <div className={cx(panelBody, "mb-1 bg-neutral-100 dark:bg-neutral-950")}>
+                      {previewFile.toLowerCase().endsWith(".pdf") ? (
+                        <iframe
+                          title={previewFile}
+                          src={filePreviewUrl(applicationId, previewFile)}
+                          className="h-64 w-full border-0"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={filePreviewUrl(applicationId, previewFile)}
+                          alt={previewFile}
+                          className="max-h-64 w-full object-contain"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </>

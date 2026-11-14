@@ -11,9 +11,12 @@ from app.extract.extract import (
     extract_application_form,
     extract_bank,
     extract_by_type,
+    extract_employment,
+    extract_family_register,
     extract_flight,
     extract_hotel,
     extract_insurance,
+    extract_payslip,
 )
 from app.extract.llm import reset_cost_log
 from app.ingest.classify_keywords import classify_text
@@ -82,6 +85,21 @@ def test_offline_bank_fixture(offline_settings: Settings) -> None:
     assert len(out.transactions) >= 1
 
 
+def test_offline_employment_payslip_family(offline_settings: Settings) -> None:
+    emp = extract_employment("dummy employer letter", settings=offline_settings)
+    assert emp.doc_type == DocType.employment_letter
+    assert emp.employee_name
+    assert emp.leave_end is not None and emp.leave_start is not None
+    assert emp.leave_end >= emp.leave_start
+    pay = extract_payslip("dummy payslip", settings=offline_settings)
+    assert pay.doc_type == DocType.payslip
+    assert pay.period_month.count("-") == 1
+    fam = extract_family_register("dummy ekhraj", settings=offline_settings)
+    assert fam.doc_type == DocType.family_register
+    assert fam.issue_date is not None
+    assert fam.translated is True
+
+
 def test_extract_by_type_dispatch(offline_settings: Settings) -> None:
     f = extract_by_type(DocType.flight_booking, "x", settings=offline_settings)
     assert f.doc_type == DocType.flight_booking
@@ -89,8 +107,14 @@ def test_extract_by_type_dispatch(offline_settings: Settings) -> None:
     assert h.doc_type == DocType.hotel_booking
     b = extract_by_type(DocType.bank_statement, "x", settings=offline_settings)
     assert b.doc_type == DocType.bank_statement
+    e = extract_by_type(DocType.employment_letter, "x", settings=offline_settings)
+    assert e.doc_type == DocType.employment_letter
+    p = extract_by_type(DocType.payslip, "x", settings=offline_settings)
+    assert p.doc_type == DocType.payslip
+    fr = extract_by_type(DocType.family_register, "x", settings=offline_settings)
+    assert fr.doc_type == DocType.family_register
     with pytest.raises(NotImplementedError):
-        extract_by_type(DocType.employment_letter, "x", settings=offline_settings)
+        extract_by_type(DocType.cnss_certificate, "x", settings=offline_settings)
 
 
 def test_offline_bank_hotel_feed_rules(offline_settings: Settings) -> None:
