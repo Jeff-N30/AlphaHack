@@ -34,25 +34,20 @@ cp .env.example .env                          # add GEMINI_API_KEY + ANTHROPIC_A
 # 2) In Cursor Agent, paste PROMPTS.md -> "Cursor build sequence" prompt 1, then 2, 3...
 ```
 
-### Read VISA emails
+### Read VISA emails (full pipeline)
 
-The backend reads unread messages from an IMAP inbox whose subject contains `VISA`
-(for example, `VISA application` or `Documents - VISA`) and saves their attachments under
-`data/email_inbox/<message-uid>/`. Each folder contains the original `message.eml`,
-the readable `body.txt`, and any PDF/image or other attachments.
+Unread IMAP messages whose subject contains `VISA` are pulled, then run end-to-end:
 
-1. Gmail: enable 2-Step Verification, then create a Google **App Password** for this app.
-2. Copy `.env.example` to `.env` and set `EMAIL_IMAP_USER` and
-   `EMAIL_IMAP_PASSWORD`. Keep `.env` private and never commit it.
-3. Start the backend:
-   ```powershell
-   uvicorn app.main:app --reload --app-dir backend
-   ```
-4. Leave the backend running. It checks the inbox every 30 seconds. When a matching
-   message arrives, the console prints `VISA email received`.
-5. Check `data\email_inbox\` for saved attachments. Matching messages are marked
-   read only after their attachments are saved. Change `EMAIL_POLL_INTERVAL_S` to
-   change the polling interval.
+`save attachments → OCR/classify/MRZ → Llama field extract → TLS checklist rules (code)`
+
+Attachments land under `data/email_inbox/<uid>/`; the audit is stored on the new
+application as `email_pipeline_report.json`. Manual trigger: `POST /email/inbox/read`.
+
+1. Gmail: enable 2-Step Verification, then create a Google **App Password**.
+2. Copy `.env.example` → `.env` and set `EMAIL_IMAP_USER` / `EMAIL_IMAP_PASSWORD`.
+3. Start the backend (`uvicorn app.main:app --reload --app-dir backend`).
+4. Watcher polls every `EMAIL_POLL_INTERVAL_S` (default 30). Console prints each
+   processed uid + checklist `outcome`.
 
 ## The four rules that win this
 1. **AI extracts, code decides.** LLMs turn pixels into JSON. Python decides PASS/FAIL. The LLM can only *raise* a flag.

@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
-from app.ingest.email import read_matching_emails
+from app.ingest.email_pipeline import process_visa_inbox
 from app.ingest.email_watcher import watch_email_inbox
 from app.ingest.pipeline import process_application
 from app.ingest.render import allowed_suffix
@@ -208,24 +208,10 @@ def demo_page():
 
 @app.post("/email/inbox/read")
 def read_email_inbox() -> dict[str, object]:
-    """Read configured matching emails and save their attachments locally."""
+    """VISA emails → attachments → OCR/MRZ → Llama extract → TLS AuditReport."""
     try:
-        messages = read_matching_emails(get_settings())
+        return process_visa_inbox(settings=get_settings())  # type: ignore[return-value]
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (OSError, RuntimeError) as exc:
-        raise HTTPException(status_code=502, detail=f"Email inbox read failed: {exc}") from exc
-    return {
-        "count": len(messages),
-        "subject_filter": get_settings().email_subject_filter,
-        "messages": [
-            {
-                "uid": message.uid,
-                "subject": message.subject,
-                "sender": message.sender,
-                "received_at": message.received_at,
-                "files": message.files,
-            }
-            for message in messages
-        ],
-    }
+        raise HTTPException(status_code=502, detail=f"Email inbox pipeline failed: {exc}") from exc
