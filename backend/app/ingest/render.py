@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import io
+import os
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -12,6 +14,27 @@ from PIL import Image, ImageOps
 _ALLOWED = frozenset({".pdf", ".png", ".jpg", ".jpeg"})
 _MAX_PX = 2000
 _DPI = 200
+
+
+def _load_tesseract():
+    try:
+        import pytesseract
+    except ImportError:
+        return None
+
+    executable = shutil.which("tesseract")
+    if executable is None and os.name == "nt":
+        for candidate in (
+            Path(os.environ.get("ProgramFiles", "")) / "Tesseract-OCR" / "tesseract.exe",
+            Path(os.environ.get("ProgramFiles(x86)", "")) / "Tesseract-OCR" / "tesseract.exe",
+        ):
+            if candidate.exists():
+                executable = str(candidate)
+                break
+    if executable is None:
+        return None
+    pytesseract.pytesseract.tesseract_cmd = executable
+    return pytesseract
 
 
 @dataclass
@@ -72,12 +95,7 @@ def _image_to_png_bytes(img: Image.Image) -> bytes:
 
 def _ocr_image(img: Image.Image, *, lang: str = "eng") -> tuple[str, float]:
     """Tesseract OCR. Returns (text, rough confidence 0..1)."""
-    try:
-        import pytesseract
-    except ImportError:
-        # passporteye pulls tesseract via CLI; try pillow-only path
-        pytesseract = None  # type: ignore
-
+    pytesseract = _load_tesseract()
     if pytesseract is None:
         return "", 0.0
 
