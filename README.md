@@ -28,6 +28,13 @@ uvicorn app.main:app --reload --app-dir backend --port 8000
 cd frontend && pnpm install && pnpm dev   # → http://localhost:3000
 ```
 
+On Windows, after the virtual environment and frontend dependencies are installed,
+double-click `start_visaref.bat` in the repository root. It opens the backend and
+the UI in separate terminal windows:
+
+- Backend: `http://127.0.0.1:8000`
+- UI: `http://localhost:3000`
+
 ### Desk
 1. **Seed complete case** → Approve  
 2. **Seed bank failure** → Send back (draft shown)  
