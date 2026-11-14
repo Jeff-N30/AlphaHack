@@ -33,6 +33,7 @@ cd frontend && pnpm install && pnpm dev   # → http://localhost:3000
 2. **Seed bank failure** → Send back (draft shown)  
 3. **Read inbox** → VISA subject or Llama-triaged empty subject → queue  
 
+Upload path: `POST /applications` then `POST /applications/{id}/run` (same extract→rules→queue).  
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
 
 ## Pipeline

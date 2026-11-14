@@ -16,7 +16,8 @@ Email / seed / upload
 
 | Command | What |
 |---|---|
-| Desk seed buttons / `POST /demo/seed-case/{id}` | Fake case → extract → rules → queue |
+| Desk seed / `POST /demo/seed-case/{id}` | Fake case → extract → rules → queue |
+| `POST /applications/{id}/run` | Upload path: same full audit → queue |
 | `POST /email/inbox/read` | IMAP VISA + Llama-triaged → queue |
 | `DEMO_OFFLINE=1` | Fixture extract (no Ollama); seed uses case.yaml facts |
 | `pytest` in `backend/` | Rules + extract + lock tests |

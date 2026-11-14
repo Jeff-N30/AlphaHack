@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import date
@@ -19,10 +18,10 @@ from app.api_applications import (
     list_applications,
     resolve_application_file,
 )
+from app.audit_pipeline import audit_application
 from app.config import get_settings
 from app.ingest.email_pipeline import process_visa_inbox
 from app.ingest.email_watcher import watch_email_inbox
-from app.ingest.pipeline import process_application
 from app.ingest.render import allowed_suffix
 from app.lock.actions import LockError, approve_application, mark_review, send_draft
 from app.lock.tokens import issue_confirm_token
@@ -111,11 +110,12 @@ async def create_app(
 
 @app.post("/applications/{application_id}/run")
 def run_application(application_id: str) -> dict:
+    """Full path: ingest → Llama extract → rules → draft → Gloria queue."""
     try:
         load_meta(application_id)
     except FileNotFoundError as exc:
         raise HTTPException(404, "application not found") from exc
-    return process_application(application_id)
+    return audit_application(application_id)
 
 
 @app.get("/applications")
@@ -232,97 +232,45 @@ def gloria_action(application_id: str, body: GloriaActionBody) -> dict:
 
 @app.post("/demo/seed-case/{case_id}")
 def seed_case(case_id: str) -> dict:
-    """Load eval case docs → Llama extract → rules AuditReport (live facts when online)."""
-    from app.drafts.drafter import attach_drafts, first_name_from_docs
-    from app.extract.pipeline_extract import extract_application_docs
+    """Load eval case docs → full audit (live extract; case.yaml when offline)."""
     from app.ingest.pipeline import seed_from_eval_case
-    from app.models import DocType, Outcome
-    from app.rules.checklist import load_checklist
-    from app.rules.engine import run
     from app.rules.facts_from_case import facts_from_case
-    from app.rules.facts_from_extractions import facts_from_extractions
-    from app.storage.files import app_dir, load_meta, save_meta
 
     case_dir = _REPO / "eval" / "cases" / case_id
     if not (case_dir / "case.yaml").exists():
         raise HTTPException(404, f"unknown case: {case_id}")
     settings = get_settings()
-    aid = seed_from_eval_case(case_dir)
-    ingest = process_application(aid, settings=settings)
-    extractions, llama_docs = extract_application_docs(aid, ingest, settings=settings)
-    llama = {
-        "provider": settings.extract_provider,
-        "model": settings.extract_model,
-        "demo_offline": settings.demo_offline,
-        "docs": llama_docs,
-    }
+    aid = seed_from_eval_case(case_dir, settings=settings)
 
-    # Offline fixtures are Jeff-shaped — keep case.yaml gold facts for reliable demos.
-    # Live Ollama: audit from extracted fields (AI extracts, code decides).
+    # Offline fixtures are Jeff-shaped — gold case.yaml keeps demo PASS/FAIL reliable.
     if settings.demo_offline:
-        facts = facts_from_case(case_dir)
-        facts_source = "case_yaml_offline"
-    else:
-        facts = facts_from_extractions(
-            extractions,
-            submission_date=date.fromisoformat(
-                load_meta(aid, settings).get("submission_date") or "2026-11-16"
-            ),
-            application_id=aid,
+        report = audit_application(
+            aid,
+            settings=settings,
+            facts=facts_from_case(case_dir),
+            facts_source="case_yaml_offline",
+            case_id=case_id,
         )
-        # Thin extract → fall back so Gloria still gets a usable desk file
-        if not (
-            facts.has(DocType.bank_statement)
-            or facts.has(DocType.flight_booking)
-            or facts.has(DocType.application_form)
-        ):
-            facts = facts_from_case(case_dir)
-            facts_source = "case_yaml_fallback"
-            llama["fallback"] = True
-        else:
-            facts_source = "live_extract"
-
-    checklist = load_checklist(_REPO / "checklists" / "fr-schengen-short-stay.yaml")
-    audit = run(checklist, facts)
-    attach_drafts(audit, applicant_first_name=first_name_from_docs(llama_docs))
-    audit_json = audit.model_dump(mode="json")
-
-    if audit.outcome == Outcome.SEND_BACK:
-        human_status = "awaiting_gloria_send_back"
-    elif audit.outcome == Outcome.NEEDS_GLORIA:
-        human_status = "awaiting_gloria_review"
     else:
-        human_status = "awaiting_gloria_approval"
+        report = audit_application(aid, settings=settings, case_id=case_id)
+        if report.get("facts_source") == "live_extract_thin":
+            report = audit_application(
+                aid,
+                settings=settings,
+                facts=facts_from_case(case_dir),
+                facts_source="case_yaml_fallback",
+                case_id=case_id,
+            )
+            report.setdefault("llama_extract", {})["fallback"] = True
 
-    meta = load_meta(aid, settings)
-    meta["status"] = human_status
-    meta["outcome"] = audit.outcome.value
-    meta["human_required"] = True
-    meta["case_id"] = case_id
-    meta["facts_source"] = facts_source
-    save_meta(meta, settings)
-    report = {
-        "application_id": aid,
-        "case_id": case_id,
-        "facts_source": facts_source,
-        "audit": audit_json,
-        "human_required": True,
-        "human_status": human_status,
-        "ingest_report": ingest,
-        "llama_extract": llama,
-    }
-    (app_dir(aid, settings) / "email_pipeline_report.json").write_text(
-        json.dumps(report, indent=2, default=str),
-        encoding="utf-8",
-    )
     return {
         "id": aid,
         "case_id": case_id,
-        "facts_source": facts_source,
-        "llama_extract": llama,
-        "ingest_report": ingest,
-        "audit": audit_json,
-        "human_status": human_status,
+        "facts_source": report.get("facts_source"),
+        "llama_extract": report.get("llama_extract"),
+        "ingest_report": report.get("ingest_report"),
+        "audit": report.get("audit"),
+        "human_status": report.get("human_status"),
     }
 
 

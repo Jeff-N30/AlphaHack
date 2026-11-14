@@ -24,7 +24,10 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.config import Settings, get_settings  # noqa: E402
 from app.extract.extract import (  # noqa: E402
     extract_application_form,
+    extract_bank,
+    extract_employment,
     extract_flight,
+    extract_hotel,
     extract_insurance,
 )
 from app.extract.llm import reset_cost_log, cost_log  # noqa: E402
@@ -96,6 +99,37 @@ def score_form(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
     ]
 
 
+def score_hotel(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
+    g_names = [_norm_name(n) for n in gold.get("guest_names") or []]
+    p_names = [_norm_name(n) for n in (pred.guest_names or [])]
+    name_ok = bool(g_names) and all(any(g in p or p in g for p in p_names) for g in g_names)
+    return [
+        ("guest_names", name_ok, str(g_names), str(p_names)),
+        ("country", (gold.get("country") or "").upper() == (pred.country or "").upper(), str(gold.get("country")), str(pred.country)),
+        ("check_in", _as_date(gold.get("check_in")) == _as_date(pred.check_in), str(gold.get("check_in")), _as_date(pred.check_in) or ""),
+        ("check_out", _as_date(gold.get("check_out")) == _as_date(pred.check_out), str(gold.get("check_out")), _as_date(pred.check_out) or ""),
+    ]
+
+
+def score_bank(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
+    return [
+        ("account_holder", _norm_name(gold.get("account_holder", "")) in _norm_name(pred.account_holder or ""), str(gold.get("account_holder")), str(pred.account_holder)),
+        ("account_currency", (gold.get("account_currency") or "").upper() == (pred.account_currency or "").upper(), str(gold.get("account_currency")), str(pred.account_currency)),
+        ("closing_balance", float(gold.get("closing_balance", 0)) == float(pred.closing_balance), str(gold.get("closing_balance")), str(pred.closing_balance)),
+        ("has_bank_stamp", bool(gold.get("has_bank_stamp")) == bool(pred.has_bank_stamp), str(gold.get("has_bank_stamp")), str(pred.has_bank_stamp)),
+        ("period_end", _as_date(gold.get("period_end")) == _as_date(pred.period_end), str(gold.get("period_end")), _as_date(pred.period_end) or ""),
+    ]
+
+
+def score_employment(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
+    return [
+        ("employee_name", _norm_name(gold.get("employee_name", "")) in _norm_name(pred.employee_name or ""), str(gold.get("employee_name")), str(pred.employee_name)),
+        ("employer_name", bool(pred.employer_name), str(gold.get("employer_name")), str(pred.employer_name)),
+        ("leave_start", _as_date(gold.get("leave_start")) == _as_date(pred.leave_start), str(gold.get("leave_start")), _as_date(pred.leave_start) or ""),
+        ("leave_end", _as_date(gold.get("leave_end")) == _as_date(pred.leave_end), str(gold.get("leave_end")), _as_date(pred.leave_end) or ""),
+    ]
+
+
 def run_case(case_dir: Path, settings: Settings) -> dict:
     case = yaml.safe_load((case_dir / "case.yaml").read_text(encoding="utf-8"))
     docs = case.get("documents") or {}
@@ -106,6 +140,9 @@ def run_case(case_dir: Path, settings: Settings) -> dict:
         ("flight_booking", extract_flight, score_flight),
         ("travel_insurance", extract_insurance, score_insurance),
         ("application_form", extract_application_form, score_form),
+        ("hotel_booking", extract_hotel, score_hotel),
+        ("bank_statement", extract_bank, score_bank),
+        ("employment_letter", extract_employment, score_employment),
     ]
     for key, extract_fn, score_fn in checks:
         gold = docs.get(key)

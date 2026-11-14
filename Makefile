@@ -1,4 +1,4 @@
-.PHONY: docs docs-clean seed-cases test eval health api demo-seed
+.PHONY: docs docs-degrade seed-cases test eval extract-eval extract-eval-live health api demo-seed desk
 
 docs:
 	.venv/bin/python tools/generate_fake_docs.py
@@ -31,7 +31,7 @@ api:
 demo-seed:
 	curl -s -X POST http://127.0.0.1:8000/demo/seed-case/case01_complete | .venv/bin/python -m json.tool | head -80
 
-demo:
-	@echo "Open http://127.0.0.1:8000/demo  then click Run agent"
-	@echo "Or: .venv/bin/python tools/demo_run.py case05_wrong_dates"
-	cd backend && ../.venv/bin/uvicorn app.main:app --reload --port 8000
+desk:
+	@echo "Gloria desk: http://localhost:3000  (API http://127.0.0.1:8000)"
+	@echo "  Terminal A: make api"
+	@echo "  Terminal B: cd frontend && pnpm dev"

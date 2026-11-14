@@ -29,11 +29,14 @@ def _imports_of(path: Path) -> set[str]:
     return found
 
 
-@pytest.mark.parametrize("pkg", ["extract", "rules", "drafts"])
+@pytest.mark.parametrize("pkg", ["extract", "rules", "drafts", "ingest", "audit_pipeline.py"])
 def test_no_outbound_or_lock_imports(pkg: str) -> None:
     root = _APP / pkg
+    paths = [root] if root.suffix == ".py" else list(root.rglob("*.py"))
     offenders: list[str] = []
-    for path in root.rglob("*.py"):
+    for path in paths:
+        if not path.is_file():
+            continue
         mods = _imports_of(path)
         for bad in _FORBIDDEN_IMPORTS:
             if any(m == bad or m.startswith(bad + ".") for m in mods):
