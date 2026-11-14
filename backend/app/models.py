@@ -273,7 +273,7 @@ class DraftStatus(str, Enum):
 class ApplicantMessageDraft(BaseModel):
     id: str
     application_id: str
-    channel: Literal["whatsapp", "email", "copy"]
+    channel: Literal["email", "copy"]
     language: Literal["ar-LB", "fr", "en"]
     body: str
     rule_ids: list[str]

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_timeout_s: int = 120
     max_pages_per_doc: int = 4
     demo_offline: bool = False
-    prompt_version: str = "3"
+    prompt_version: str = "5"
 
     # Human cost baseline
     officer_hourly_usd: float = 5.00

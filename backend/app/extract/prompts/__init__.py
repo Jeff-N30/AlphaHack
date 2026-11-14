@@ -79,3 +79,105 @@ Numeric dates are DAY/MONTH/YEAR. Example: intended travel 10/12/2026 → 2026-1
 --- DOCUMENT TEXT ---
 <<<TEXT>>>
 """
+
+_HOTEL_SHOT = """
+EXAMPLE INPUT:
+BOOKING CONFIRMATION Hotel Specimen Montmartre Paris France
+Guest: KARIM NASSAR Confirmation HB-000913
+Check-in 18/12/2026 Check-out 28/12/2026 Prepaid / free cancellation
+
+EXAMPLE JSON:
+{"doc_type":"hotel_booking","language":"en","anomaly_flags":[],"guest_names":["KARIM NASSAR"],"hotel_name":"Hotel Specimen Montmartre","city":"Paris","country":"FR","check_in":"2026-12-18","check_out":"2026-12-28","confirmation_number":"HB-000913","prepaid_or_free_cancellation":true,"field_meta":{}}
+"""
+
+HOTEL_USER = """Document type: hotel booking / reservation confirmation.
+Extract guest_names, hotel_name, city, country (ISO alpha-2), check_in, check_out,
+optional confirmation_number, prepaid_or_free_cancellation.
+Numeric dates are DAY/MONTH/YEAR (European) for BOTH check_in and check_out.
+Examples: 04/02/2026 → 2026-02-04; 10/02/2026 → 2026-02-10 (NOT 2026-10-10).
+check_out must be after check_in.
+""" + _HOTEL_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""
+
+_BANK_SHOT = """
+EXAMPLE INPUT:
+Banque Specimen du Liban Statement Fresh USD current account
+Account holder KARIM NASSAR Currency USD
+Period 01/05/2026 to 31/10/2026 Issued 05/11/2026
+Opening 3400.00 Closing 6200.00 Bank stamp present
+28/05/2026 SALARY 1800.00  28/08/2026 SALARY 1800.00
+
+EXAMPLE JSON:
+{"doc_type":"bank_statement","language":"en","anomaly_flags":[],"account_holder":"KARIM NASSAR","bank_name":"Banque Specimen du Liban","account_currency":"USD","account_type_raw":"Fresh USD current account","period_start":"2026-05-01","period_end":"2026-10-31","issue_date":"2026-11-05","opening_balance":3400.0,"closing_balance":6200.0,"has_bank_stamp":true,"transactions":[{"date":"2026-05-28","description":"SALARY","amount":1800.0,"balance_after":null},{"date":"2026-08-28","description":"SALARY","amount":1800.0,"balance_after":null}],"field_meta":{}}
+"""
+
+BANK_USER = """Document type: bank account statement / relevé bancaire.
+Extract account_holder, bank_name, account_currency (ISO 4217 as printed — never invent LBP FX),
+optional account_type_raw, period_start, period_end, issue_date,
+opening_balance, closing_balance, has_bank_stamp, and transactions
+(date, description, amount as +credit / -debit, optional balance_after).
+Numeric dates are DAY/MONTH/YEAR. Copy amounts as printed; do not convert currency.
+""" + _BANK_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""
+
+_EMP_SHOT = """
+EXAMPLE INPUT:
+TO WHOM IT MAY CONCERN
+This is to certify that KARIM NASSAR has been employed with Specimen Soft SAL
+as Software Engineer since 01/03/2020. Monthly salary: 1800 USD.
+Leave of absence approved from 18/12/2026 to 28/12/2026 for tourism to France.
+Letter date: 05/11/2026. HR Manager (signed and stamped).
+
+EXAMPLE JSON:
+{"doc_type":"employment_letter","language":"en","anomaly_flags":[],"employee_name":"KARIM NASSAR","employer_name":"Specimen Soft SAL","position":"Software Engineer","hire_date":"2020-03-01","monthly_salary":{"amount":1800.0,"currency":"USD"},"leave_start":"2026-12-18","leave_end":"2026-12-28","letter_date":"2026-11-05","signed_and_stamped":true,"field_meta":{}}
+"""
+
+EMPLOYMENT_USER = """Document type: employer / employment letter (not the Schengen application form).
+Extract employee_name, employer_name, optional position, hire_date, monthly_salary {{amount, currency}},
+leave_start, leave_end, letter_date, signed_and_stamped.
+Numeric dates are DAY/MONTH/YEAR. Currency ISO 4217 as printed.
+""" + _EMP_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""
+
+_PAY_SHOT = """
+EXAMPLE INPUT:
+PAYSLIP / BULLETIN DE PAIE
+Employer: Specimen Soft SAL  Employee: KARIM NASSAR
+Period (YYYY-MM): 2026-10  Net pay: 1800.00 USD
+
+EXAMPLE JSON:
+{"doc_type":"payslip","language":"en","anomaly_flags":[],"employee_name":"KARIM NASSAR","employer_name":"Specimen Soft SAL","period_month":"2026-10","net_pay":{"amount":1800.0,"currency":"USD"},"field_meta":{}}
+"""
+
+PAYSLIP_USER = """Document type: payslip / bulletin de paie.
+Extract employee_name, employer_name, period_month as YYYY-MM, net_pay {{amount, currency}}.
+If only month name + year printed, convert to YYYY-MM (October 2026 → 2026-10).
+""" + _PAY_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""
+
+_FAM_SHOT = """
+EXAMPLE INPUT:
+EXTRACT OF FAMILY REGISTER — Ekhraj Kaid Aily — CERTIFIED TRANSLATION
+Head of family: NASSAR JOSEPH
+Members: KARIM NASSAR, RANA NASSAR
+Issue date of extract: 15/06/2026  Translated: true
+
+EXAMPLE JSON:
+{"doc_type":"family_register","language":"en","anomaly_flags":[],"head_of_family":"NASSAR JOSEPH","members":["KARIM NASSAR","RANA NASSAR"],"issue_date":"2026-06-15","translated":true,"field_meta":{}}
+"""
+
+FAMILY_REGISTER_USER = """Document type: family register extract / ekhraj kaid aily (civil status).
+Extract optional head_of_family, members list, issue_date, optional translated (true if EN/FR translation noted).
+Numeric dates are DAY/MONTH/YEAR.
+""" + _FAM_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""

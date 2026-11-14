@@ -12,6 +12,11 @@ Demo destination: France Schengen short-stay via TLScontact Beirut (`checklists/
 Architecture must stay destination-agnostic: destination logic lives ONLY in `checklists/*.yaml` params.
 No LBP / Lebanese-pound logic anywhere. Unknown currency or destination → NEEDS_HUMAN, never a guess.
 
+### Never build (product decision)
+- **No Gemini / Claude / cloud LLM** — Ollama `llama3.2` only.
+- **No WhatsApp / Twilio / Meta** channels.
+- **No TLS upload** — Gloria takes the approved file to TLS herself. VisaRef only pre-checks + Approve / Send back (applicant message later).
+
 ## 1. AI extracts, code decides
 - LLM calls live only in `backend/app/extract/` and `backend/app/drafts/`.
 - LLMs output Pydantic models from `schemas/models.py` (extractions, classified pages, draft text). Nothing else.

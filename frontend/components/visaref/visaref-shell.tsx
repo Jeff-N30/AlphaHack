@@ -22,12 +22,12 @@ import {
   RefreshIcon,
   SentIcon,
   Tick02Icon,
-  UnfoldMoreIcon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import {
   fetchApplication,
   fetchApplications,
+  filePreviewUrl,
   postEmailInboxRead,
   postGloriaAction,
   postSeedCase,
@@ -81,7 +81,6 @@ const typeHeadingXs = "text-[16px]/[20px] font-[450] tracking-[-0.015em]";
 const typeLabel = "text-[14px]/[16px] font-[450]";
 const typeBodySm = "text-[13px]/[18px] font-normal";
 const typeCaption = "text-[12px]/[16px] font-normal tabular-nums";
-const typeCodeSm = "font-mono text-[12px]/[16px] tabular-nums";
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rb-accent,oklch(20.5%_0_0))] dark:focus-visible:outline-[var(--rb-accent,oklch(100%_0_0))]";
 const focusRingInset =
@@ -101,9 +100,6 @@ const buttonMd =
 const buttonLg =
   "h-11 gap-2 rounded-[var(--rb-r-sm,6px)] px-5 text-[16px]/[20px] font-[450] tracking-[-0.01em]";
 const iconButtonMd = "size-8 rounded-[var(--rb-r-sm,6px)]";
-const selectCaret = "shrink-0 text-neutral-900/80 dark:text-neutral-100/80";
-const statusWordSm =
-  "inline-flex items-start gap-1 text-[13px]/[18px] font-[450] tabular-nums";
 const statusOk = "text-neutral-900/80 dark:text-neutral-100/80";
 const statusWarn = "text-[oklch(49%_0.1_68)] dark:text-[oklch(80%_0.13_68)]";
 const statusFail = "text-[oklch(51%_0.18_26)] dark:text-[oklch(76%_0.14_26)]";
@@ -125,20 +121,6 @@ const panelBody =
   "mx-1 mb-1 flex min-w-0 flex-col overflow-hidden rounded-[var(--rb-r-sm,6px)] border border-neutral-900/8 bg-white [&:has(+*)]:mb-0 dark:border-neutral-100/8 dark:bg-neutral-950";
 const panelFoot =
   "flex min-h-11 min-w-0 items-center gap-2 px-4 py-2 text-[13px]/[18px] text-neutral-900/66 dark:text-neutral-100/66 has-[button]:justify-end has-[button]:pe-2";
-const itemRow =
-  "relative flex min-h-10 w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 py-2 text-left text-neutral-900 dark:text-neutral-100 transition-[background-color] duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] has-[[data-description]]:min-h-14";
-const itemRowInteractive =
-  "cursor-pointer hover:bg-neutral-900/5 dark:hover:bg-neutral-100/5 active:bg-neutral-900/8 dark:active:bg-neutral-100/8";
-const itemContent = "flex min-w-0 flex-1 flex-col gap-0.5";
-const itemTitle =
-  "flex max-w-full min-w-0 items-baseline gap-2 text-[14px]/[16px] font-[450] text-neutral-900 dark:text-neutral-100";
-const menuPopup =
-  "min-w-48 max-w-[min(480px,calc(100vw-2rem))] overflow-x-hidden overflow-y-auto overscroll-contain rounded-[var(--rb-r-lg,10px)] border border-neutral-900/10 dark:border-neutral-100/14 bg-white dark:bg-neutral-900 p-1 text-neutral-900 dark:text-neutral-100 outline-none shadow-[0_12px_24px_-12px_rgb(0_0_0/0.2)] dark:shadow-[0_12px_24px_-12px_rgb(0_0_0/0.6)]";
-const menuSeparator = "-mx-1 my-1 h-px bg-neutral-900/8 dark:bg-neutral-100/8";
-const menuItem =
-  "relative flex min-h-8 w-full cursor-default items-center gap-2 rounded-[var(--rb-r-sm,6px)] px-2 py-1.5 text-left text-[14px]/[16px] font-[450] text-neutral-900 outline-none select-none [&_svg]:shrink-0 [&_svg]:text-neutral-900/80 hover:bg-neutral-900/5 focus-visible:bg-neutral-900/5 data-[highlighted]:bg-neutral-900/5 aria-selected:bg-neutral-900/9 aria-disabled:cursor-not-allowed aria-disabled:text-neutral-900/40 dark:text-neutral-100 dark:[&_svg]:text-neutral-100/80 dark:hover:bg-neutral-100/5 dark:focus-visible:bg-neutral-100/5 dark:data-[highlighted]:bg-neutral-100/5 dark:aria-selected:bg-neutral-100/9 dark:aria-disabled:text-neutral-100/40";
-const tooltip =
-  "pointer-events-none inline-flex min-h-6 w-fit max-w-64 items-center gap-2 rounded-[var(--rb-r-sm,6px)] bg-neutral-900 px-2 py-1 text-[12px]/[16px] font-[450] tabular-nums text-white shadow-[0_12px_24px_-12px_rgb(0_0_0/0.2)] dark:shadow-[0_12px_24px_-12px_rgb(0_0_0/0.6)] dark:bg-neutral-100 dark:text-neutral-900";
 const overlayEnter =
   "transition-opacity duration-[160ms] ease-[cubic-bezier(0.2,0,0,1)] starting:opacity-0 motion-reduce:transition-none";
 const sidebarSurface =
@@ -159,10 +141,6 @@ const fadeBottomOnPaper =
   "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-900";
 const fadeBottomOnTray =
   "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-900";
-const fadeBottom =
-  "bg-linear-to-t from-white to-transparent transition-opacity duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] dark:from-neutral-950";
-const skeleton =
-  "rounded-[var(--rb-r-sm,6px)] bg-neutral-900/8 dark:bg-neutral-100/8";
 const emptyTitle =
   "text-[16px]/[20px] font-[450] tracking-[-0.015em] text-neutral-900 dark:text-neutral-100";
 const emptyDescription =
@@ -183,8 +161,6 @@ const toolOutput =
   "min-w-0 overflow-x-auto font-mono text-[12px]/[16px] whitespace-pre-wrap text-neutral-900/80 dark:text-neutral-100/80 [overflow-wrap:anywhere]";
 
 const EASE_OUT: [number, number, number, number] = [0.2, 0, 0, 1];
-const TOOLTIP_DELAY_MS = 400;
-const TOOLTIP_GRACE_MS = 300;
 
 type Tone = "neutral" | "attention" | "critical";
 const TONE: Record<Tone, string> = {
@@ -351,99 +327,23 @@ const AREA_META: {
 ];
 
 function WorkspaceBlock() {
-  const [open, setOpen] = useState(false);
-  const [shown, setShown] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const close = (restore: boolean) => {
-    setOpen(false);
-    setShown(false);
-    if (restore) triggerRef.current?.focus({ preventScroll: true });
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => setShown(true));
-    const doc = rootRef.current?.ownerDocument ?? document;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) close(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close(true);
-    };
-    doc.addEventListener("pointerdown", onPointerDown);
-    doc.addEventListener("keydown", onKeyDown);
-    return () => {
-      cancelAnimationFrame(frame);
-      doc.removeEventListener("pointerdown", onPointerDown);
-      doc.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => (open ? close(false) : setOpen(true))}
-        className={cx(ghostButtonMuted, buttonLg, "w-full pr-2 pl-2 text-left")}
-      >
-        <span className={cx(avatarSquare, "size-[28px] overflow-hidden")}>
-          <Image
-            src="/visaref-mark.svg"
-            alt=""
-            width={28}
-            height={28}
-            className="size-full"
-          />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={cx(typeLabel, text1, "block truncate")}>VisaRef</span>
-          <span className={cx(typeCaption, text3, "block truncate")}>
-            TLS Beirut · Gloria
-          </span>
-        </span>
-        <HugeiconsIcon
-          icon={UnfoldMoreIcon}
-          size={16}
-          strokeWidth={1.8}
-          aria-hidden="true"
-          className={selectCaret}
+    <div className={cx(ghostButtonMuted, buttonLg, "pointer-events-none w-full pr-2 pl-2 text-left")}>
+      <span className={cx(avatarSquare, "size-[28px] overflow-hidden")}>
+        <Image
+          src="/visaref-mark.svg"
+          alt=""
+          width={28}
+          height={28}
+          className="size-full"
         />
-      </button>
-
-      {open && (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label="Workspace"
-          className={cx(
-            menuPopup,
-            overlayEnter,
-            "absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30",
-            shown ? "opacity-100" : "opacity-0",
-          )}
-        >
-          <div className={menuItem}>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate">VisaRef</span>
-              <span className={cx(typeCaption, text3, "block truncate")}>
-                FR Schengen short-stay
-              </span>
-            </span>
-            <HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={1.8} />
-          </div>
-          <div role="separator" className={menuSeparator} />
-          <button type="button" role="menuitem" className={menuItem} onClick={() => close(true)}>
-            <HugeiconsIcon icon={PassportIcon} size={16} strokeWidth={1.8} />
-            Destination checklist
-          </button>
-        </div>
-      )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={cx(typeLabel, text1, "block truncate")}>VisaRef</span>
+        <span className={cx(typeCaption, text3, "block truncate")}>
+          TLS Beirut · Gloria
+        </span>
+      </span>
     </div>
   );
 }
@@ -459,78 +359,11 @@ function NavigationFrame({
   counts: Record<NavView, number>;
   onClose?: () => void;
 }) {
-  const [tipFor, setTipFor] = useState<string | null>(null);
-  const [tipShown, setTipShown] = useState(false);
   const {
     ref: navRef,
     edges: navEdges,
     onScroll: onNavScroll,
   } = useScrollFade<HTMLElement>();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const frameRef = useRef<number | undefined>(undefined);
-  const openRef = useRef(false);
-  const graceRef = useRef(false);
-  const graceTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-  const reduceMotion = useReducedMotion();
-
-  const showTip = (id: string) => {
-    clearTimeout(timerRef.current);
-    cancelAnimationFrame(frameRef.current ?? 0);
-    const instant = openRef.current || graceRef.current;
-    const reveal = () => {
-      openRef.current = true;
-      setTipFor(id);
-      if (instant) setTipShown(true);
-      else {
-        setTipShown(false);
-        frameRef.current = requestAnimationFrame(() => setTipShown(true));
-      }
-    };
-    if (instant) reveal();
-    else timerRef.current = setTimeout(reveal, TOOLTIP_DELAY_MS);
-  };
-
-  const hideTip = () => {
-    clearTimeout(timerRef.current);
-    cancelAnimationFrame(frameRef.current ?? 0);
-    if (openRef.current) {
-      graceRef.current = true;
-      clearTimeout(graceTimerRef.current);
-      graceTimerRef.current = setTimeout(() => {
-        graceRef.current = false;
-      }, TOOLTIP_GRACE_MS);
-    }
-    openRef.current = false;
-    setTipFor(null);
-    setTipShown(false);
-  };
-
-  useEffect(
-    () => () => {
-      clearTimeout(timerRef.current);
-      clearTimeout(graceTimerRef.current);
-      cancelAnimationFrame(frameRef.current ?? 0);
-    },
-    [],
-  );
-
-  const tip = (id: string, label: string) =>
-    tipFor === id ? (
-      <motion.span
-        role="tooltip"
-        initial={tipShown || reduceMotion ? false : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.16, ease: EASE_OUT }}
-        className={cx(
-          tooltip,
-          "absolute left-full top-1/2 z-[70] ml-2 h-7 -translate-y-1/2 whitespace-nowrap",
-        )}
-      >
-        {label}
-      </motion.span>
-    ) : null;
 
   const area = AREA_META.find((a) => a.id === areaId) ?? AREA_META[0];
 
@@ -553,53 +386,35 @@ function NavigationFrame({
           </button>
         )}
 
-        <nav
-          aria-label="Areas"
-          onMouseLeave={hideTip}
-          className="flex flex-col items-center gap-1"
-        >
+        <nav aria-label="Areas" className="flex flex-col items-center gap-1">
           {AREA_META.map((item) => {
             const selected = item.id === areaId;
             return (
-              <span key={item.id} className="relative">
-                <button
-                  type="button"
-                  aria-label={item.label}
-                  aria-current={selected ? "page" : undefined}
-                  onClick={() => {
-                    onSelectArea(item.id);
-                    hideTip();
-                  }}
-                  onMouseEnter={() => showTip(item.id)}
-                  onFocus={() => showTip(item.id)}
-                  onBlur={hideTip}
-                  className={cx(navItem, "justify-center")}
-                >
-                  <HugeiconsIcon
-                    icon={item.icon}
-                    size={16}
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  />
-                </button>
-                {tip(item.id, item.label)}
-              </span>
+              <button
+                key={item.id}
+                type="button"
+                title={item.label}
+                aria-label={item.label}
+                aria-current={selected ? "page" : undefined}
+                onClick={() => onSelectArea(item.id)}
+                className={cx(navItem, "justify-center")}
+              >
+                <HugeiconsIcon
+                  icon={item.icon}
+                  size={16}
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+              </button>
             );
           })}
         </nav>
 
-        <span className="relative mt-auto" onMouseLeave={hideTip}>
-          <button
-            type="button"
-            aria-label="Gloria, visa officer"
-            onMouseEnter={() => showTip("account")}
-            onFocus={() => showTip("account")}
-            onBlur={hideTip}
-            className={cx(avatar, focusRing, "cursor-pointer")}
-          >
-            <span className={avatarFallback}>GL</span>
-          </button>
-          {tip("account", "Gloria · visa officer")}
+        <span
+          title="Gloria · visa officer"
+          className={cx(avatar, "mt-auto cursor-default")}
+        >
+          <span className={avatarFallback}>GL</span>
         </span>
       </div>
 
@@ -709,7 +524,9 @@ function ApprovalPanel({
   const lookItems = results.filter((r) =>
     ["FAIL", "NEEDS_HUMAN"].includes((r.status ?? "").toUpperCase()),
   );
+  const draft = audit?.drafts?.[0];
   const files = detailQuery.data?.files ?? [];
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
   const alreadyDecided =
     Boolean(meta?.status?.startsWith("approved")) ||
     Boolean(meta?.status?.startsWith("sent_back"));
@@ -938,16 +755,99 @@ function ApprovalPanel({
               )}
             </section>
 
+            {draft?.body ? (
+              <section className={panel}>
+                <div className={cx(panelHead, "h-10")}>
+                  <span className={inkSlot}>Draft</span>
+                  <span className={cx(frameTitle, "flex-1")}>
+                    Send-back message
+                  </span>
+                  <span className={cx(typeCaption, text3)}>
+                    {draft.status || "DRAFT"}
+                  </span>
+                </div>
+                <div className={cx(panelBody, "p-3")}>
+                  <pre
+                    className={cx(
+                      typeBodySm,
+                      text2,
+                      "whitespace-pre-wrap font-sans",
+                    )}
+                  >
+                    {draft.body}
+                  </pre>
+                  <p className={cx(typeCaption, text3, "mt-2")}>
+                    Confirm Send back to copy this for email — not auto-sent.
+                  </p>
+                </div>
+              </section>
+            ) : null}
+
             {files.length > 0 ? (
               <div>
                 <p className={cx(typeCaption, text3, "mb-2")}>Documents</p>
                 <ul className="flex flex-wrap gap-1.5">
                   {files.map((f) => (
-                    <li key={f} className={cx(inkSlot, "max-w-full truncate")}>
-                      {f}
+                    <li key={f}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewFile((cur) => (cur === f ? null : f))
+                        }
+                        className={cx(
+                          inkSlot,
+                          hoverFill,
+                          pressedFill,
+                          transition,
+                          focusRing,
+                          "max-w-full cursor-pointer truncate",
+                          previewFile === f &&
+                            "border-neutral-900/40 dark:border-neutral-100/40",
+                        )}
+                      >
+                        {f}
+                      </button>
                     </li>
                   ))}
                 </ul>
+                {previewFile ? (
+                  <div
+                    className={cx(
+                      panel,
+                      "mt-2 overflow-hidden",
+                    )}
+                  >
+                    <div className={cx(panelHead, "h-9")}>
+                      <span className={cx(frameTitle, "flex-1 truncate")}>
+                        {previewFile}
+                      </span>
+                      <a
+                        href={filePreviewUrl(applicationId, previewFile)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={cx(ghostButtonMuted, buttonSm)}
+                      >
+                        Open
+                      </a>
+                    </div>
+                    <div className={cx(panelBody, "mb-1 bg-neutral-100 dark:bg-neutral-950")}>
+                      {previewFile.toLowerCase().endsWith(".pdf") ? (
+                        <iframe
+                          title={previewFile}
+                          src={filePreviewUrl(applicationId, previewFile)}
+                          className="h-64 w-full border-0"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={filePreviewUrl(applicationId, previewFile)}
+                          alt={previewFile}
+                          className="max-h-64 w-full object-contain"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </>

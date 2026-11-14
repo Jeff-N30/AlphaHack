@@ -16,8 +16,18 @@ export type ApplicationRow = {
   submission_date?: string | null;
   created_at?: string | null;
   email_uid?: string | null;
+  email_source?: string | null;
   escalations?: number | null;
   has_report?: boolean;
+  has_draft?: boolean;
+};
+
+export type DraftMessage = {
+  id?: string;
+  body?: string;
+  language?: string;
+  status?: string;
+  rule_ids?: string[];
 };
 
 export type ApplicationDetail = {
@@ -34,6 +44,7 @@ export type ApplicationDetail = {
     submission_date?: string;
     created_at?: string;
     last_officer?: string;
+    facts_source?: string;
   };
   files: string[];
   report: {
@@ -48,6 +59,7 @@ export type ApplicationDetail = {
         evidence?: Array<{ doc?: string; field?: string; value?: string; page?: number }>;
       }>;
       skipped_rules?: string[];
+      drafts?: DraftMessage[];
     };
     [key: string]: unknown;
   } | null;
@@ -77,14 +89,39 @@ export function fetchApplication(id: string) {
   return request<ApplicationDetail>(`/applications/${id}`);
 }
 
-export function postGloriaAction(
-  id: string,
+export function filePreviewUrl(applicationId: string, filename: string) {
+  return `${API_URL}/applications/${applicationId}/files/${encodeURIComponent(filename)}`;
+}
+
+export async function postConfirmToken(
+  applicationId: string,
   action: "approve" | "send_back" | "review",
   officer = "Gloria",
 ) {
-  return request<{ meta: ApplicationDetail["meta"] }>(
+  return request<{ token: string; expires_in_s: number }>("/confirm-tokens", {
+    method: "POST",
+    body: JSON.stringify({ application_id: applicationId, action, officer }),
+  });
+}
+
+export async function postGloriaAction(
+  id: string,
+  action: "approve" | "send_back" | "review",
+  officer = "Gloria",
+  draftId?: string,
+) {
+  const { token } = await postConfirmToken(id, action, officer);
+  return request<{ meta: ApplicationDetail["meta"]; draft?: DraftMessage }>(
     `/applications/${id}/gloria-action`,
-    { method: "POST", body: JSON.stringify({ action, officer }) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action,
+        officer,
+        confirm_token: token,
+        draft_id: draftId,
+      }),
+    },
   );
 }
 
