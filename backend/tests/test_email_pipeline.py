@@ -113,6 +113,8 @@ def test_process_email_message_runs_rules(offline_settings: Settings, tmp_path: 
         "SEND_BACK",
         "NEEDS_GLORIA",
     }
+    assert report["human_required"] is True
+    assert report["human_status"].startswith("awaiting_gloria")
     # Missing hotel/bank/passport etc → not a full READY usually; still produced results
     assert isinstance(report["audit"]["results"], list)
     assert len(report["audit"]["results"]) >= 1

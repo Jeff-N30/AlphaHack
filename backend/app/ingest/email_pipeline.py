@@ -12,11 +12,11 @@ from app.extract.extract import extract_by_type
 from app.ingest.email import SavedEmail, read_matching_emails
 from app.ingest.pipeline import process_application
 from app.ingest.render import allowed_suffix, read_preview
-from app.models import DocType, Extraction, MRZ
+from app.models import DocType, Extraction, MRZ, Outcome
 from app.rules.checklist import load_checklist
 from app.rules.engine import run
 from app.rules.facts_from_extractions import facts_from_extractions, passport_from_mrz
-from app.storage.files import app_dir, create_application, store_upload
+from app.storage.files import app_dir, create_application, load_meta, save_meta, store_upload
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +115,35 @@ def process_email_message(
     )
     checklist = load_checklist(_CHECKLIST)
     audit = run(checklist, facts)
+
+    # Human lock: pipeline never Approve/Send — only mark what Gloria must do
+    if audit.outcome == Outcome.SEND_BACK:
+        human_status = "awaiting_gloria_send_back"
+        human_action = "Gloria: review FAILs and send the request draft (not auto-sent)."
+    elif audit.outcome == Outcome.NEEDS_GLORIA:
+        human_status = "awaiting_gloria_review"
+        human_action = "Gloria: resolve NEEDS_HUMAN flags (photo/pages/name/etc)."
+    else:
+        human_status = "awaiting_gloria_approval"
+        human_action = "Gloria: confirm Approve (human-click lock). Pipeline cannot approve."
+
+    meta = load_meta(aid, settings)
+    meta["status"] = human_status
+    meta["outcome"] = audit.outcome.value
+    meta["human_required"] = True
+    meta["human_action"] = human_action
+    meta["email_uid"] = message.uid
+    save_meta(meta, settings)
+
     report = {
         "email_uid": message.uid,
         "subject": message.subject,
         "sender": message.sender,
         "application_id": aid,
         "files": saved,
+        "human_required": True,
+        "human_status": human_status,
+        "human_action": human_action,
         "ingest_report": ingest,
         "llama_extract": {
             "provider": settings.extract_provider,
@@ -132,6 +155,10 @@ def process_email_message(
     }
     out_path = app_dir(aid, settings) / "email_pipeline_report.json"
     out_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    print(
+        f"VISA app {aid}: outcome={audit.outcome.value} → {human_status} (Gloria must act)",
+        flush=True,
+    )
     return report
 
 

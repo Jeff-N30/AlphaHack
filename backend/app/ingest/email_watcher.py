@@ -32,7 +32,8 @@ async def watch_email_inbox(settings: Settings) -> None:
                 outcome = (result.get("audit") or {}).get("outcome")
                 print(
                     f"\nVISA pipeline: uid={result.get('email_uid')} "
-                    f"app={result.get('application_id')} outcome={outcome}",
+                    f"app={result.get('application_id')} outcome={outcome} "
+                    f"→ {result.get('human_status')} (human_required=True)",
                     flush=True,
                 )
         except (OSError, RuntimeError, ValueError, imaplib.IMAP4.error) as exc:
