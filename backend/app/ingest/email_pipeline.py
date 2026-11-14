@@ -28,6 +28,8 @@ _EXTRACTABLE = {
     DocType.flight_booking,
     DocType.travel_insurance,
     DocType.application_form,
+    DocType.hotel_booking,
+    DocType.bank_statement,
 }
 
 

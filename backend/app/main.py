@@ -152,7 +152,9 @@ def _demo_llama_extract(case_dir: Path) -> dict:
     from app.config import Settings
     from app.extract.extract import (
         extract_application_form,
+        extract_bank,
         extract_flight,
+        extract_hotel,
         extract_insurance,
     )
     from app.ingest.render import read_preview
@@ -170,6 +172,8 @@ def _demo_llama_extract(case_dir: Path) -> dict:
         ("flight_booking.pdf", "flight_booking", extract_flight),
         ("travel_insurance.pdf", "travel_insurance", extract_insurance),
         ("application_form.pdf", "application_form", extract_application_form),
+        ("hotel_booking.pdf", "hotel_booking", extract_hotel),
+        ("bank_statement.pdf", "bank_statement", extract_bank),
     ]
     for fname, key, fn in mapping:
         path = docs_dir / fname

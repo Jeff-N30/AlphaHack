@@ -79,3 +79,47 @@ Numeric dates are DAY/MONTH/YEAR. Example: intended travel 10/12/2026 → 2026-1
 --- DOCUMENT TEXT ---
 <<<TEXT>>>
 """
+
+_HOTEL_SHOT = """
+EXAMPLE INPUT:
+BOOKING CONFIRMATION Hotel Specimen Montmartre Paris France
+Guest: KARIM NASSAR Confirmation HB-000913
+Check-in 18/12/2026 Check-out 28/12/2026 Prepaid / free cancellation
+
+EXAMPLE JSON:
+{"doc_type":"hotel_booking","language":"en","anomaly_flags":[],"guest_names":["KARIM NASSAR"],"hotel_name":"Hotel Specimen Montmartre","city":"Paris","country":"FR","check_in":"2026-12-18","check_out":"2026-12-28","confirmation_number":"HB-000913","prepaid_or_free_cancellation":true,"field_meta":{}}
+"""
+
+HOTEL_USER = """Document type: hotel booking / reservation confirmation.
+Extract guest_names, hotel_name, city, country (ISO alpha-2), check_in, check_out,
+optional confirmation_number, prepaid_or_free_cancellation.
+Numeric dates are DAY/MONTH/YEAR (European) for BOTH check_in and check_out.
+Examples: 04/02/2026 → 2026-02-04; 10/02/2026 → 2026-02-10 (NOT 2026-10-10).
+check_out must be after check_in.
+""" + _HOTEL_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""
+
+_BANK_SHOT = """
+EXAMPLE INPUT:
+Banque Specimen du Liban Statement Fresh USD current account
+Account holder KARIM NASSAR Currency USD
+Period 01/05/2026 to 31/10/2026 Issued 05/11/2026
+Opening 3400.00 Closing 6200.00 Bank stamp present
+28/05/2026 SALARY 1800.00  28/08/2026 SALARY 1800.00
+
+EXAMPLE JSON:
+{"doc_type":"bank_statement","language":"en","anomaly_flags":[],"account_holder":"KARIM NASSAR","bank_name":"Banque Specimen du Liban","account_currency":"USD","account_type_raw":"Fresh USD current account","period_start":"2026-05-01","period_end":"2026-10-31","issue_date":"2026-11-05","opening_balance":3400.0,"closing_balance":6200.0,"has_bank_stamp":true,"transactions":[{"date":"2026-05-28","description":"SALARY","amount":1800.0,"balance_after":null},{"date":"2026-08-28","description":"SALARY","amount":1800.0,"balance_after":null}],"field_meta":{}}
+"""
+
+BANK_USER = """Document type: bank account statement / relevé bancaire.
+Extract account_holder, bank_name, account_currency (ISO 4217 as printed — never invent LBP FX),
+optional account_type_raw, period_start, period_end, issue_date,
+opening_balance, closing_balance, has_bank_stamp, and transactions
+(date, description, amount as +credit / -debit, optional balance_after).
+Numeric dates are DAY/MONTH/YEAR. Copy amounts as printed; do not convert currency.
+""" + _BANK_SHOT + """
+--- DOCUMENT TEXT ---
+<<<TEXT>>>
+"""

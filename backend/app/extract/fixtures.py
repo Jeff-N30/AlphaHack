@@ -9,9 +9,12 @@ from datetime import date
 
 from app.models import (
     ApplicationFormExtraction,
+    BankStatementExtraction,
     FlightBookingExtraction,
     FlightSegment,
+    HotelBookingExtraction,
     Money,
+    Transaction,
     TravelInsuranceExtraction,
 )
 
@@ -70,5 +73,39 @@ FIXTURE_APPLICATION_FORM = ApplicationFormExtraction(
     intended_arrival=date(2026, 2, 4),
     intended_departure=date(2026, 2, 10),
     signed=True,
+    field_meta={},
+)
+
+FIXTURE_HOTEL = HotelBookingExtraction(
+    language="en",
+    anomaly_flags=[],
+    guest_names=["JEFF DEMO NADER"],
+    hotel_name="Hotel Specimen Montmartre (FAKE)",
+    city="Paris",
+    country="FR",
+    check_in=date(2026, 2, 4),
+    check_out=date(2026, 2, 10),
+    confirmation_number="HB-DEMO-001",
+    prepaid_or_free_cancellation=True,
+    field_meta={},
+)
+
+FIXTURE_BANK = BankStatementExtraction(
+    language="en",
+    anomaly_flags=[],
+    account_holder="JEFF DEMO NADER",
+    bank_name="Banque Specimen du Liban (FAKE)",
+    account_currency="USD",
+    account_type_raw="Fresh USD current account",
+    period_start=date(2025, 8, 1),
+    period_end=date(2026, 1, 31),
+    issue_date=date(2026, 2, 1),
+    opening_balance=3400.0,
+    closing_balance=6200.0,
+    has_bank_stamp=True,
+    transactions=[
+        Transaction(date=date(2025, 11, 28), description="SALARY", amount=1800.0),
+        Transaction(date=date(2025, 12, 28), description="SALARY", amount=1800.0),
+    ],
     field_meta={},
 )
