@@ -118,3 +118,50 @@ def test_llama_fallback_discards_unrelated_email(tmp_path: Path, monkeypatch) ->
     )
     assert read_matching_emails(settings, imap_factory=NonVisaIMAP) == []
     assert not list((tmp_path / "email_inbox").rglob("message.eml"))
+
+
+class EmptySubjectIMAP(FakeIMAP):
+    """No Subject header — must not match the VISA subject filter."""
+
+    def __init__(self, _host: str, _port: int, **_kwargs: object) -> None:
+        self.message = EmailMessage()
+        # Intentionally omit Subject
+        self.message["From"] = "applicant@example.com"
+        self.message["Date"] = "Sat, 14 Nov 2026 10:00:00 +0000"
+        self.message.set_content(
+            "Bonjour, voici mon passeport et mon relevé bancaire pour la demande Schengen."
+        )
+        self.message.add_attachment(
+            b"fake pdf",
+            maintype="application",
+            subtype="pdf",
+            filename="passport.pdf",
+        )
+        self.seen = []
+
+
+def test_empty_subject_uses_llama_triage(tmp_path: Path, monkeypatch) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        email_imap_host="imap.example.com",
+        email_imap_user="user",
+        email_imap_password="app-password",
+    )
+
+    def related_triage(**_kwargs: object) -> InboxTriage:
+        return InboxTriage(
+            related=True,
+            person_name="Jeff Nader",
+            reason="passport + bank for Schengen",
+            translation="Hello, here is my passport and bank statement for the Schengen application.",
+        )
+
+    monkeypatch.setattr("app.ingest.email._triage_message", related_triage)
+    messages = read_matching_emails(settings, imap_factory=EmptySubjectIMAP)
+
+    assert len(messages) == 1
+    assert messages[0].subject == ""
+    assert messages[0].source == "llama_triage"
+    assert messages[0].person_name == "Jeff Nader"
+    assert "needs_review" in messages[0].files[0]
+    assert (tmp_path / "email_inbox" / "needs_review").exists()
