@@ -96,15 +96,16 @@ Agent polls inbox (IMAP) on an interval **or** accepts web upload (same pipeline
 
 Filename is a **hint only**, never trusted alone.
 
-### 5. Classify document type (Llama)
-Preview text → Llama returns JSON only, e.g.:
-```json
-{"doc_type": "passport", "confidence": 0.91}
-```
+### 5. Classify document type (keywords → Llama)
+Preview text → `extract/classify.py`:
+1. Strong keyword hit (confidence ≥ 0.7) → use it (fast).
+2. Else → **Llama** returns `doc_type` + confidence (filename ignored).
+3. Offline demo replays the keyword guess as the Llama fixture.
+
 Allowed types:  
 `passport | bank_statement | hotel_booking | flight_booking | travel_insurance | employment_letter | payslip | application_form | photo | cnss_certificate | family_register | travel_plan | unknown`
 
-If `unknown` or confidence **&lt; 0.7** → **NEEDS_HUMAN**.
+If `unknown` or confidence **&lt; 0.45** → treat as unknown → **NEEDS_HUMAN** later.
 
 ### 6. Route to the matching extract script (code)
 ```text

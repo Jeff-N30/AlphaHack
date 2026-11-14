@@ -93,11 +93,10 @@ def process_email_message(
         except ValueError:
             dtype = DocType.unknown
         if dtype not in _EXTRACTABLE:
-            # retry classify from preview text
-            prev = read_preview(path, max_pages=4)
-            from app.ingest.classify_keywords import classify_text
+            from app.extract.classify import classify_document
 
-            dtype = classify_text(prev.text, filename=fname).doc_type
+            prev = read_preview(path, max_pages=4)
+            dtype = classify_document(prev.text, filename=fname, settings=settings).doc_type
         if dtype not in _EXTRACTABLE:
             continue
         try:

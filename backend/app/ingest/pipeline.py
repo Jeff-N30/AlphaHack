@@ -1,4 +1,4 @@
-"""First vertical slice: preview → keyword classify → MRZ when passport-like."""
+"""Preview → classify (keywords / Llama) → MRZ when passport-like."""
 from __future__ import annotations
 
 import json
@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
+from app.extract.classify import classify_document
 from app.extract.mrz import best_mrz
-from app.ingest.classify_keywords import classify_text
 from app.ingest.render import DocumentPreview, allowed_suffix, read_preview
 from app.models import DocType
 from app.storage.files import app_dir, load_meta, save_meta
@@ -60,7 +60,7 @@ def process_application(
             continue
 
         prev = read_preview(path, max_pages=max_pages)
-        classified = classify_text(prev.text, filename=path.name)
+        classified = classify_document(prev.text, filename=path.name, settings=settings)
         entry: dict[str, Any] = {
             "file": path.name,
             "rejected": False,
@@ -85,7 +85,7 @@ def process_application(
         "checklist_id": meta.get("checklist_id"),
         "submission_date": meta.get("submission_date"),
         "files": files_out,
-        "note": "preview+classify+mrz slice only; full rules engine next",
+        "note": "preview + classify (keywords/llama) + MRZ",
     }
     (root / "ingest_report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     meta["status"] = "ingested"
