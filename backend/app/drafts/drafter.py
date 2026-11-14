@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date
 from typing import Any
 
 from app.config import Settings, get_settings
@@ -138,9 +137,3 @@ def first_name_from_docs(llama_docs: dict[str, Any] | None) -> str:
     if emp.get("employee_name"):
         return str(emp["employee_name"]).split()[0]
     return "Applicant"
-
-
-def format_issue_date(d: date | None) -> str | None:
-    if d is None:
-        return None
-    return d.strftime("%d/%m/%Y")

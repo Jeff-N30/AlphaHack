@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 
 from pydantic import BaseModel, Field
 
@@ -324,13 +324,6 @@ def seed_case(case_id: str) -> dict:
         "audit": audit_json,
         "human_status": human_status,
     }
-
-
-@app.get("/demo")
-def demo_page():
-    """Hackathon demo UI — run one eval case and show outcome."""
-    html = (_REPO / "tools" / "demo.html").read_text(encoding="utf-8")
-    return HTMLResponse(html)
 
 
 @app.post("/email/inbox/read")
