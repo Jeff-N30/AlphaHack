@@ -1,0 +1,190 @@
+# FAKE APPLICANT. Invented for AlphaHack 2026 / Lebanon→France edge cases.
+case_id: case07_insurance_france_only
+title: Insurance territory France only (OTHER)
+fake_data: true
+submission_date: 2026-11-16
+profile: employee
+destination_checklist: fr-schengen-short-stay
+applicant:
+  surname: NASSAR
+  given_names: KARIM
+  surname_ar: نصار
+  given_names_ar: كريم
+  sex: M
+  date_of_birth: 1994-03-12
+  nationality: LBN
+documents:
+  passport:
+    file: passport.png
+    surname: NASSAR
+    given_names: KARIM
+    surname_ar: نصار
+    given_names_ar: كريم
+    passport_number: LR0482913
+    nationality: LBN
+    date_of_birth: 1994-03-12
+    sex: M
+    issue_date: 2022-05-10
+    expiry_date: 2032-05-09
+    place_of_issue: BEIRUT
+  application_form:
+    file: application_form.pdf
+    surname: NASSAR
+    given_names: KARIM
+    date_of_birth: 1994-03-12
+    passport_number: LR0482913
+    expiry_date: 2032-05-09
+    france_visas_reference: FRA1BE2026FAKE2913
+    intended_arrival: 2026-12-18
+    intended_departure: 2026-12-28
+    signed: true
+  photo:
+    file: photo.png
+    count: 2
+  flight_booking:
+    file: flight_booking.pdf
+    passenger_names:
+    - NASSAR/KARIM MR
+    booking_reference: FAKE13
+    passport_number: LR0482913
+    segments:
+    - from_airport: BEY
+      to_airport: CDG
+      to_country: FR
+      departure_date: 2026-12-18
+      flight_number: XX0201
+    - from_airport: CDG
+      to_airport: BEY
+      to_country: LB
+      departure_date: 2026-12-28
+      flight_number: XX0202
+  hotel_booking:
+    file: hotel_booking.pdf
+    guest_names:
+    - KARIM NASSAR
+    hotel_name: Hotel Specimen Montmartre (FAKE)
+    city: Paris
+    country: FR
+    check_in: 2026-12-18
+    check_out: 2026-12-28
+    confirmation_number: HB-000913
+    prepaid_or_free_cancellation: true
+  travel_insurance:
+    file: travel_insurance.pdf
+    insured_name: KARIM NASSAR
+    date_of_birth: 1994-03-12
+    passport_number: LR0482913
+    insurer: Specimen Assurance SAL (FAKE)
+    policy_number: TI-2026-2913
+    coverage:
+      amount: 30000
+      currency: EUR
+    territory: OTHER
+    territory_raw: France only
+    start_date: 2026-12-18
+    end_date: 2026-12-28
+    covers:
+    - emergency_medical
+    - hospitalisation
+    - repatriation
+  bank_statement:
+    file: bank_statement.pdf
+    account_holder: KARIM NASSAR
+    bank_name: Banque Specimen du Liban (FAKE)
+    account_currency: USD
+    account_type_raw: Fresh USD current account
+    period_start: 2026-05-01
+    period_end: 2026-10-31
+    issue_date: 2026-11-05
+    opening_balance: 3400.0
+    closing_balance: 6200.0
+    has_bank_stamp: true
+    transactions:
+    - date: 2026-05-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-06-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-07-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-08-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-09-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-10-28
+      description: SALARY CEDAR SPECIMEN SAL
+      amount: 1800.0
+    - date: 2026-05-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+    - date: 2026-06-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+    - date: 2026-07-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+    - date: 2026-08-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+    - date: 2026-09-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+    - date: 2026-10-15
+      description: CARD PAYMENTS / LIVING COSTS
+      amount: -1333.33
+  employment_letter:
+    file: employment_letter.pdf
+    employee_name: KARIM NASSAR
+    employer_name: Cedar Specimen SAL (FAKE)
+    position: Software Engineer
+    hire_date: 2021-02-01
+    monthly_salary:
+      amount: 1800
+      currency: USD
+    leave_start: 2026-12-18
+    leave_end: 2026-12-28
+    letter_date: 2026-11-03
+    signed_and_stamped: true
+  payslip:
+  - file: payslip_2026-08.pdf
+    employee_name: KARIM NASSAR
+    employer_name: Cedar Specimen SAL (FAKE)
+    period_month: 2026-08
+    net_pay:
+      amount: 1800
+      currency: USD
+    issue_date: 2026-08-28
+  - file: payslip_2026-09.pdf
+    employee_name: KARIM NASSAR
+    employer_name: Cedar Specimen SAL (FAKE)
+    period_month: 2026-09
+    net_pay:
+      amount: 1800
+      currency: USD
+    issue_date: 2026-09-28
+  - file: payslip_2026-10.pdf
+    employee_name: KARIM NASSAR
+    employer_name: Cedar Specimen SAL (FAKE)
+    period_month: 2026-10
+    net_pay:
+      amount: 1800
+      currency: USD
+    issue_date: 2026-10-28
+  cnss_certificate:
+    file: cnss_certificate.pdf
+    names_found:
+    - KARIM NASSAR
+  family_register:
+    file: family_register.pdf
+    head_of_family: NASSAR (father)
+    members:
+    - KARIM NASSAR
+    issue_date: 2026-09-20
+    translated: true
+  travel_plan:
+    file: travel_plan.pdf
+    summary: 'Paris tourism: Louvre, Versailles, Montmartre'

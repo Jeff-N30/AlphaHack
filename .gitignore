@@ -28,6 +28,13 @@ frontend/out/
 eval/cases/*/docs/
 runs/
 
+# never commit real ID scans / local OCR dumps
+data/real_demo/
+**/JASON*
+**/*PPT*.pdf
+**/*passport*page*.png
+**/*mrz_band*.png
+
 # os / editor
 .DS_Store
 .idea/

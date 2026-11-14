@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VisaRef — live demo</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222c;
+      --line: #2a3542;
+      --text: #e8eef4;
+      --muted: #8b9aab;
+      --pass: #3dd68c;
+      --fail: #f07178;
+      --human: #e6b450;
+      --accent: #5b9fd4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2a3a, var(--bg));
+      color: var(--text); min-height: 100vh; padding: 28px;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 22px; font-size: 0.95rem; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+    select, button {
+      font: inherit; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--panel); color: var(--text);
+    }
+    button {
+      background: var(--accent); border-color: transparent; color: #061018; font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px 18px; min-height: 200px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .outcome {
+      font-size: 1.8rem; font-weight: 700; margin: 8px 0 4px;
+    }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+    }
+    .PASS { background: rgba(61,214,140,.15); color: var(--pass); }
+    .FAIL { background: rgba(240,113,120,.15); color: var(--fail); }
+    .NEEDS_HUMAN { background: rgba(230,180,80,.15); color: var(--human); }
+    .SKIPPED { background: rgba(139,154,171,.15); color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    td, th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+    th { color: var(--muted); font-weight: 500; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.8rem; }
+    #log { white-space: pre-wrap; color: var(--muted); font-size: 0.8rem; max-height: 180px; overflow: auto; }
+    .pill { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>VisaRef</h1>
+  <p class="sub">Lebanon → France Schengen pre-check · AI extracts · <strong>code decides</strong> · Gloria confirms</p>
+
+  <div class="row">
+    <label class="pill">Case
+      <select id="case">
+        <option value="case01_complete">case01 — complete (READY)</option>
+        <option value="case05_wrong_dates" selected>case05 — hotel dates (SEND_BACK)</option>
+        <option value="case04_name_mismatch">case04 — name variant (NEEDS_GLORIA)</option>
+        <option value="case02_missing_insurance">case02 — missing insurance</option>
+      </select>
+    </label>
+    <button id="run">Run agent</button>
+    <span id="status" class="pill"></span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Outcome</h2>
+      <div id="outcome" class="outcome">—</div>
+      <div id="meta" class="pill"></div>
+      <h2 style="margin-top:18px">Passport MRZ</h2>
+      <div id="mrz" class="mono">—</div>
+    </div>
+    <div class="card">
+      <h2>Checklist results</h2>
+      <div style="max-height: 360px; overflow: auto">
+        <table>
+          <thead><tr><th>Rule</th><th>Status</th></tr></thead>
+          <tbody id="rules"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Agent log</h2>
+    <div id="log" class="mono"></div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const rulesEl = document.getElementById("rules");
+    function log(msg) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    document.getElementById("run").onclick = async () => {
+      const caseId = document.getElementById("case").value;
+      const btn = document.getElementById("run");
+      btn.disabled = true;
+      document.getElementById("status").textContent = "running…";
+      logEl.textContent = "";
+      rulesEl.innerHTML = "";
+      document.getElementById("outcome").textContent = "—";
+      document.getElementById("mrz").textContent = "—";
+      try {
+        log("1. Load fake TLS file: " + caseId);
+        log("2. Ingest pdf/png → OCR / classify / passport MRZ");
+        log("3. Run fr-schengen-short-stay checklist (code, not LLM)");
+        const t0 = performance.now();
+        const res = await fetch("/demo/seed-case/" + caseId, { method: "POST" });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const ms = Math.round(performance.now() - t0);
+        const audit = data.audit;
+        document.getElementById("outcome").textContent = audit.outcome;
+        document.getElementById("outcome").style.color =
+          audit.outcome === "READY_FOR_APPROVAL" ? "var(--pass)" :
+          audit.outcome === "SEND_BACK" ? "var(--fail)" : "var(--human)";
+        document.getElementById("meta").textContent =
+          `app ${data.id} · escalations ${audit.escalations} · ${ms} ms · Gloria still clicks Send/Approve`;
+
+        const files = (data.ingest_report && data.ingest_report.files) || [];
+        const pass = files.find(f => f.mrz);
+        if (pass && pass.mrz) {
+          const m = pass.mrz;
+          document.getElementById("mrz").textContent =
+            `${m.surname} / ${m.given_names}\n` +
+            `${m.passport_number} · DOB ${m.date_of_birth} · exp ${m.expiry_date}\n` +
+            `checksums_valid=${m.checksums_valid}`;
+        } else {
+          document.getElementById("mrz").textContent = "(no MRZ on image path — rules used case facts)";
+        }
+
+        const interesting = (audit.results || []).filter(r =>
+          r.mode !== "manual" && r.status !== "PASS"
+        );
+        const show = interesting.length ? interesting : (audit.results || []).slice(0, 12);
+        for (const r of show) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td class="mono">${r.rule_id}</td><td><span class="badge ${r.status}">${r.status}</span></td>`;
+          rulesEl.appendChild(tr);
+        }
+        if (!interesting.length) {
+          log("All code checks PASS → READY_FOR_APPROVAL (Gloria ticks photo/pages).");
+        } else {
+          log("Non-PASS rules: " + interesting.map(r => r.rule_id + "=" + r.status).join(", "));
+        }
+        log("Done. Human-click lock: no auto-send.");
+        document.getElementById("status").textContent = "done";
+      } catch (e) {
+        log("ERROR: " + e);
+        document.getElementById("status").textContent = "error";
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

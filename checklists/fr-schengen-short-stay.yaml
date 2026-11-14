@@ -46,7 +46,7 @@ reference_currency: EUR
 fx_rates_to_eur:   # set manually by Gloria each week. No LBP: other currencies -> NEEDS_HUMAN
   EUR: 1.0
   USD: 0.86        # PLACEHOLDER, update before demo
-schengen_countries: [AT, BE, BG, HR, CZ, DK, EE, FI, FR, DE, GR, HU, IS, IT, LV, LI, LT, LU, MT, NL, NO, PL, PT, RO, SK, SI, ES, SE, CH]  # [SP] F1765
+schengen_countries: [AT, BE, BG, HR, CZ, DK, EE, FI, FR, DE, GR, HU, IS, IT, LV, LI, LT, LU, MT, NL, "NO", PL, PT, RO, SK, SI, ES, SE, CH]  # [SP] F1765; quote NO (YAML bool)
 applicant_profiles: [employee]    # demo scope. Add self_employed, student, retired later
 
 required_documents:

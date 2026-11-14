@@ -17,6 +17,7 @@ dependencies = [
   "pymupdf",
   "pdfplumber",
   "pillow",
+  "pytesseract",
   "passporteye",
   "mrz",
   "rapidfuzz",
@@ -24,6 +25,7 @@ dependencies = [
   "pyyaml",
   "cryptography",
   "apscheduler",
+  "reportlab",
 ]
 
 [project.optional-dependencies]
