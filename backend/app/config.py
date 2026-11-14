@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     next_public_api_url: str = "http://localhost:8000"
 
     # Optional channels
+    email_imap_host: str = ""
+    email_imap_port: int = 993
+    email_imap_user: str = ""
+    email_imap_password: str = ""
+    email_imap_folder: str = "INBOX"
+    email_subject_filter: str = "VISA"
+    email_read_unread_only: bool = True
+    email_poll_interval_s: int = 30
+    email_connection_timeout_s: int = 20
     whatsapp_token: str = ""
     whatsapp_phone_number_id: str = ""
     whatsapp_verify_token: str = ""

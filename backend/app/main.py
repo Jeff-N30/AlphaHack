@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 """VisaRef API — intake + preview/classify/MRZ slice."""
 from __future__ import annotations
 
@@ -24,6 +25,42 @@ app.add_middleware(
 )
 
 _REPO = Path(__file__).resolve().parents[2]
+=======
+"""VisaRef API."""
+from __future__ import annotations
+
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
+
+from app.config import get_settings
+from app.ingest.email import read_matching_emails
+from app.ingest.email_watcher import watch_email_inbox
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    settings = get_settings()
+    watcher: asyncio.Task[None] | None = None
+    if settings.email_imap_host and settings.email_imap_user and settings.email_imap_password:
+        print("Email watcher enabled; connecting to Gmail...", flush=True)
+        watcher = asyncio.create_task(watch_email_inbox(settings))
+    else:
+        logger.info("Email watcher disabled: configure EMAIL_IMAP_HOST, EMAIL_IMAP_USER, and EMAIL_IMAP_PASSWORD.")
+    try:
+        yield
+    finally:
+        if watcher is not None:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+
+
+app = FastAPI(title="VisaRef", version="0.1.0", lifespan=lifespan)
+>>>>>>> Stashed changes
 
 
 @app.get("/health")
@@ -31,6 +68,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+<<<<<<< Updated upstream
 @app.get("/checklists")
 def list_checklists() -> list[dict[str, str]]:
     settings = get_settings()
@@ -127,3 +165,28 @@ def demo_page():
     """Hackathon demo UI — run one eval case and show outcome."""
     html = (_REPO / "tools" / "demo.html").read_text(encoding="utf-8")
     return HTMLResponse(html)
+=======
+@app.post("/email/inbox/read")
+def read_email_inbox() -> dict[str, object]:
+    """Read configured matching emails and save their attachments locally."""
+    try:
+        messages = read_matching_emails(get_settings())
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Email inbox read failed: {exc}") from exc
+    return {
+        "count": len(messages),
+        "subject_filter": get_settings().email_subject_filter,
+        "messages": [
+            {
+                "uid": message.uid,
+                "subject": message.subject,
+                "sender": message.sender,
+                "received_at": message.received_at,
+                "files": message.files,
+            }
+            for message in messages
+        ],
+    }
+>>>>>>> Stashed changes

@@ -34,6 +34,26 @@ cp .env.example .env                          # add GEMINI_API_KEY + ANTHROPIC_A
 # 2) In Cursor Agent, paste PROMPTS.md -> "Cursor build sequence" prompt 1, then 2, 3...
 ```
 
+### Read VISA emails
+
+The backend reads unread messages from an IMAP inbox whose subject contains `VISA`
+(for example, `VISA application` or `Documents - VISA`) and saves their attachments under
+`data/email_inbox/<message-uid>/`. Each folder contains the original `message.eml`,
+the readable `body.txt`, and any PDF/image or other attachments.
+
+1. Gmail: enable 2-Step Verification, then create a Google **App Password** for this app.
+2. Copy `.env.example` to `.env` and set `EMAIL_IMAP_USER` and
+   `EMAIL_IMAP_PASSWORD`. Keep `.env` private and never commit it.
+3. Start the backend:
+   ```powershell
+   uvicorn app.main:app --reload --app-dir backend
+   ```
+4. Leave the backend running. It checks the inbox every 30 seconds. When a matching
+   message arrives, the console prints `VISA email received`.
+5. Check `data\email_inbox\` for saved attachments. Matching messages are marked
+   read only after their attachments are saved. Change `EMAIL_POLL_INTERVAL_S` to
+   change the polling interval.
+
 ## The four rules that win this
 1. **AI extracts, code decides.** LLMs turn pixels into JSON. Python decides PASS/FAIL. The LLM can only *raise* a flag.
 2. **MRZ checksums are the truth anchor.** Passport data is re-derived from the MRZ and verified with ICAO check digits, so a misread digit can't slip through quietly.
