@@ -15,6 +15,13 @@ test:
 eval:
 	.venv/bin/python eval/score.py --selftest
 
+# Prompt+eval loop for Llama extract (no fine-tune). Needs make docs; live = DEMO_OFFLINE=0
+extract-eval:
+	.venv/bin/python eval/extract_eval.py
+
+extract-eval-live:
+	DEMO_OFFLINE=0 EXTRACT_PROVIDER=ollama EXTRACT_MODEL=llama3.2 .venv/bin/python eval/extract_eval.py --cases case01_complete
+
 health:
 	.venv/bin/python -c "from fastapi.testclient import TestClient; import sys; sys.path.insert(0,'backend'); from app.main import app; print(TestClient(app).get('/health').json())"
 

@@ -7,16 +7,37 @@ from pathlib import Path
 from app.models import ClassifiedPage, DocType
 
 _PATTERNS: list[tuple[DocType, list[str]]] = [
+    # application_form first: France-Visas PDFs mention employer/Schengen and used to steal other labels
+    (
+        DocType.application_form,
+        [
+            r"HARMONISED APPLICATION",
+            r"APPLICATION FOR SCHENGEN",
+            r"FRANCE-VISAS",
+            r"VISA APPLICATION",
+            r"APPLICABLE VISA FEE",
+            r"REQUIRED SUPPORTING DOCUMENTS TO SUBMIT",
+            r"SHORT-STAY",
+        ],
+    ),
     (DocType.passport, [r"\bPASSPORT\b", r"P<[A-Z]{3}", r"REPUBLIC OF LEBANON", r"MACHINE READABLE"]),
-    (DocType.flight_booking, [r"E-?TICKET", r"FLIGHT\s+BOOKING", r"BOOKING REFERENCE", r"\bCDG\b", r"\bBEY\b"]),
+    (
+        DocType.flight_booking,
+        [r"E-?TICKET", r"FLIGHT\s+BOOKING", r"BOOKING REFERENCE", r"BOOKING REF", r"CHECKMYTRIP", r"\bCDG\b", r"\bBEY\b"],
+    ),
     (DocType.hotel_booking, [r"BOOKING CONFIRMATION", r"CHECK-?IN", r"CHECK-?OUT", r"HOTEL"]),
-    (DocType.travel_insurance, [r"TRAVEL INSURANCE", r"SCHENGEN", r"REPATRIATION", r"POLICY NUMBER", r"30[\s,]?000"]),
+    (
+        DocType.travel_insurance,
+        [r"TRAVEL INSURANCE", r"COVER NOTE", r"REPATRIATION", r"POLICY NUMBER", r"30[\s,]?000", r"MEDICAL COVERAGE"],
+    ),
     (DocType.bank_statement, [r"ACCOUNT STATEMENT", r"CLOSING BALANCE", r"\bIBAN\b", r"TRANSACTION"]),
-    (DocType.employment_letter, [r"TO WHOM IT MAY CONCERN", r"EMPLOYMENT", r"LEAVE", r"SALARY"]),
+    (
+        DocType.employment_letter,
+        [r"TO WHOM IT MAY CONCERN", r"EMPLOYMENT LETTER", r"EMPLOYER LETTER", r"LEAVE APPROVED", r"MONTHLY SALARY"],
+    ),
     (DocType.payslip, [r"\bPAYSLIP\b", r"NET PAY", r"PAY PERIOD"]),
     (DocType.cnss_certificate, [r"\bCNSS\b", r"SOCIAL SECURITY"]),
     (DocType.family_register, [r"FAMILY REGISTER", r"EKHRAJ", r"KAID AILY", r"EXTRACT OF FAMILY"]),
-    (DocType.application_form, [r"FRANCE-VISAS", r"VISA APPLICATION", r"SHORT-STAY"]),
     (DocType.travel_plan, [r"TRAVEL PLAN", r"ITINERARY"]),
     (DocType.photo, [r"SPECIMEN PHOTO"]),
 ]

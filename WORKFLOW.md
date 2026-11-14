@@ -38,8 +38,26 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-Llama is **not** trained/fine-tuned. Prompts + tools only.  
+Llama is **not** fine-tuned. We “train” it with a **prompt + eval loop** only.  
 No vision model required on 8GB Mac: **OCR/PDF text → llama3.2**.
+
+### How we train Llama (no fine-tune)
+
+```text
+1. Fake PDF text (make docs) or Jeff-shaped specimen
+2. Prompt (few-shot) → llama3.2 → Extraction JSON
+3. Score fields vs case.yaml gold   →  eval/extract_eval.py
+4. Misses? add few-shot / tighten prompt / bump PROMPT_VERSION
+5. Re-run until field accuracy is high — THEN rules see good Facts
+```
+
+| Command | What |
+|---|---|
+| `DEMO_OFFLINE=1` | fixtures (demo safe, $0, no Ollama call) |
+| `make extract-eval-live` | Ollama live vs `case01` gold fields |
+| `eval/extract_history.csv` | scoreboard over time |
+
+Never fine-tune on real passports/bank PDFs. Never ask Llama for PASS/FAIL.
 
 ---
 

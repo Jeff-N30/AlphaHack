@@ -26,17 +26,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLMs
+    # LLMs — default extract = local Ollama llama3.2 (no cloud key)
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
-    extract_provider: str = "gemini"
-    extract_model: str = "gemini-3.8-flash"
-    draft_provider: str = "anthropic"
-    draft_model: str = "claude-sonnet-5-5"
-    llm_timeout_s: int = 60
+    extract_provider: str = "ollama"  # ollama | gemini | anthropic
+    extract_model: str = "llama3.2"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    draft_provider: str = "ollama"
+    draft_model: str = "llama3.2"
+    llm_timeout_s: int = 120
     max_pages_per_doc: int = 4
     demo_offline: bool = False
-    prompt_version: str = "1"
+    prompt_version: str = "2"
 
     # Prices USD / 1M tokens
     price_gemini_3_8_flash_in: float = 0.75
