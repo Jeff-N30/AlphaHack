@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
 from app.lock.audit_log import append_audit_log
 from app.lock.tokens import TokenError, consume_confirm_token
 from app.models import DraftStatus
-from app.outbound.copy import deliver_copy
+from app.outbound.deliver import DeliveryError, deliver_applicant_message
 from app.storage.files import app_dir, load_meta, save_meta
 
 
@@ -19,59 +20,49 @@ class LockError(Exception):
         self.status_code = status_code
 
 
-def approve_application(
-    application_id: str,
+def _applicant_email(
+    meta: dict[str, Any],
+    settings: Settings,
+    override: str | None = None,
+) -> str | None:
+    if override and override.strip():
+        return override.strip()
+    for key in ("applicant_email", "email_sender", "sender"):
+        raw = meta.get(key)
+        if raw:
+            return str(raw)
+    return settings.demo_applicant_email or None
+
+
+def _send_or_raise(
     *,
-    confirm_token: str,
-    officer: str = "Gloria",
-    settings: Settings | None = None,
-) -> dict[str, Any]:
-    settings = settings or get_settings()
-    try:
-        consume_confirm_token(
-            confirm_token, application_id=application_id, action="approve"
-        )
-    except TokenError as exc:
-        raise LockError(str(exc), status_code=409 if exc.conflict else 400) from exc
-
-    meta = load_meta(application_id, settings)
-    meta["status"] = "approved_by_gloria"
-    meta["human_action"] = f"Approved by {officer}"
-    meta["human_required"] = False
-    meta["last_officer"] = officer
-    meta["approved_at"] = datetime.now(timezone.utc).isoformat()
-    save_meta(meta, settings)
-    append_audit_log(
-        officer=officer,
-        action="approve",
-        application_id=application_id,
-        body=None,
-        settings=settings,
-    )
-    return meta
-
-
-def send_draft(
+    body: str,
     application_id: str,
-    *,
-    confirm_token: str,
-    officer: str = "Gloria",
-    draft_id: str | None = None,
-    settings: Settings | None = None,
+    officer: str,
+    to_address: str | None,
+    subject: str,
+    settings: Settings,
 ) -> dict[str, Any]:
-    """Mark send-back + promote DRAFT → SENT via copy outbound (Gloria paste)."""
-    settings = settings or get_settings()
     try:
-        consume_confirm_token(
-            confirm_token, application_id=application_id, action="send_back"
+        return deliver_applicant_message(
+            body=body,
+            application_id=application_id,
+            officer=officer,
+            to_address=to_address,
+            subject=subject,
+            settings=settings,
         )
-    except TokenError as exc:
-        raise LockError(str(exc), status_code=409 if exc.conflict else 400) from exc
+    except DeliveryError as exc:
+        raise LockError(str(exc), status_code=400) from exc
 
-    draft, report_path, report = _load_draft(application_id, draft_id, settings)
-    body = draft.get("body") or ""
-    delivery = deliver_copy(body=body, application_id=application_id, officer=officer)
 
+def _mark_draft_sent(
+    *,
+    draft: dict[str, Any],
+    report: dict[str, Any],
+    report_path: Path,
+    officer: str,
+) -> None:
     draft["status"] = DraftStatus.SENT.value
     draft["approved_by"] = officer
     draft["approved_at"] = datetime.now(timezone.utc).isoformat()
@@ -84,9 +75,103 @@ def send_draft(
         report["audit"]["drafts"] = drafts
     report_path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
 
+
+def approve_application(
+    application_id: str,
+    *,
+    confirm_token: str,
+    officer: str = "Gloria",
+    draft_id: str | None = None,
+    to_email: str | None = None,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    settings = settings or get_settings()
+    try:
+        consume_confirm_token(
+            confirm_token, application_id=application_id, action="approve"
+        )
+    except TokenError as exc:
+        raise LockError(str(exc), status_code=409 if exc.conflict else 400) from exc
+
     meta = load_meta(application_id, settings)
+    draft, report_path, report = _load_draft(application_id, draft_id, settings)
+    body = draft.get("body") or ""
+    if not body.strip():
+        raise LockError("no draft body to email the applicant")
+
+    to = _applicant_email(meta, settings, to_email)
+    delivery = _send_or_raise(
+        body=body,
+        application_id=application_id,
+        officer=officer,
+        to_address=to,
+        subject="Your visa file — next steps",
+        settings=settings,
+    )
+    _mark_draft_sent(
+        draft=draft, report=report, report_path=report_path, officer=officer
+    )
+    if to:
+        meta["applicant_email"] = to
+
+    meta["status"] = "approved_by_gloria"
+    meta["human_action"] = f"Marked ready by {officer} (email sent)"
+    meta["human_required"] = False
+    meta["last_officer"] = officer
+    meta["approved_at"] = datetime.now(timezone.utc).isoformat()
+    meta["last_delivery"] = delivery
+    save_meta(meta, settings)
+    append_audit_log(
+        officer=officer,
+        action="approve",
+        application_id=application_id,
+        body=body,
+        extra={"delivery": delivery, "draft_id": draft.get("id")},
+        settings=settings,
+    )
+    return {"meta": meta, "draft": draft, "delivery": delivery}
+
+
+def send_draft(
+    application_id: str,
+    *,
+    confirm_token: str,
+    officer: str = "Gloria",
+    draft_id: str | None = None,
+    to_email: str | None = None,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Mark send-back + SMTP the draft to the correspondent."""
+    settings = settings or get_settings()
+    try:
+        consume_confirm_token(
+            confirm_token, application_id=application_id, action="send_back"
+        )
+    except TokenError as exc:
+        raise LockError(str(exc), status_code=409 if exc.conflict else 400) from exc
+
+    draft, report_path, report = _load_draft(application_id, draft_id, settings)
+    body = draft.get("body") or ""
+    if not body.strip():
+        raise LockError("no draft body to email the applicant")
+    meta = load_meta(application_id, settings)
+    to = _applicant_email(meta, settings, to_email)
+    delivery = _send_or_raise(
+        body=body,
+        application_id=application_id,
+        officer=officer,
+        to_address=to,
+        subject="Your visa file — documents needed",
+        settings=settings,
+    )
+    _mark_draft_sent(
+        draft=draft, report=report, report_path=report_path, officer=officer
+    )
+    if to:
+        meta["applicant_email"] = to
+
     meta["status"] = "sent_back_by_gloria"
-    meta["human_action"] = f"Send-back confirmed by {officer} (copy channel)"
+    meta["human_action"] = f"Send-back emailed by {officer}"
     meta["human_required"] = False
     meta["last_officer"] = officer
     meta["last_delivery"] = delivery
@@ -136,7 +221,7 @@ def _load_draft(
     application_id: str,
     draft_id: str | None,
     settings: Settings,
-) -> tuple[dict[str, Any], Any, dict[str, Any]]:
+) -> tuple[dict[str, Any], Path, dict[str, Any]]:
     root = app_dir(application_id, settings)
     report_path = root / "email_pipeline_report.json"
     if not report_path.exists():
@@ -148,7 +233,7 @@ def _load_draft(
         draft = {
             "id": draft_id or "stub",
             "application_id": application_id,
-            "channel": "copy",
+            "channel": "email",
             "language": "en",
             "body": "Please send the missing or corrected documents for your visa file.",
             "rule_ids": [],

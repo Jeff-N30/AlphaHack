@@ -225,13 +225,33 @@ function shortId(id: string) {
 
 /** Gloria-facing labels — never show raw rule ids as the primary text. */
 const RULE_LABEL: Record<string, { title: string; hint: string }> = {
+  "DOC.PRESENT": {
+    title: "Missing documents",
+    hint: "Required pack is incomplete",
+  },
   "PP.BLANK_PAGES": {
     title: "Blank visa pages",
-    hint: "At least 2 empty pages in the passport",
+    hint: "Confirm at least 2 empty pages in the passport",
+  },
+  "PP.MRZ_CHECKSUM": {
+    title: "Passport MRZ",
+    hint: "Machine zone checksum — re-scan if unclear",
+  },
+  "PP.MRZ_MATCHES_VIZ": {
+    title: "MRZ vs printed name",
+    hint: "Compare machine zone to the visual passport page",
+  },
+  "PP.NOT_EXPIRED": {
+    title: "Passport expired",
+    hint: "Passport must be valid for travel",
+  },
+  "PP.VALID_AFTER_DEPARTURE": {
+    title: "Passport validity after trip",
+    hint: "Must stay valid ≥ 3 months after leaving Schengen",
   },
   "PHOTO.ISO": {
     title: "Photo standard",
-    hint: "Schengen / ISO photo rules",
+    hint: "Confirm Schengen / ISO photo rules by eye",
   },
   "BANK.SUFFICIENT_FUNDS": {
     title: "Bank balance too low",
@@ -241,45 +261,315 @@ const RULE_LABEL: Record<string, { title: string; hint: string }> = {
     title: "Bank statement too old",
     hint: "Statement date outside the allowed window",
   },
+  "BANK.STAMPED": {
+    title: "Bank stamp",
+    hint: "Confirm the statement is stamped by the bank",
+  },
   "ID.NAME_MATCH": {
     title: "Name mismatch",
     hint: "Passport name does not match other documents",
   },
+  "ID.DOB_MATCH": {
+    title: "Birth date",
+    hint: "Open the document and confirm the birth date matches the passport",
+  },
+  "ID.FORM_MATCHES_PASSPORT": {
+    title: "Form vs passport",
+    hint: "France-Visas form must match the passport exactly",
+  },
+  "ID.PASSPORT_NO_MATCH": {
+    title: "Passport number",
+    hint: "Confirm the passport number matches on each document",
+  },
+  "EMP.LETTER_FIELDS": {
+    title: "Employer letter incomplete",
+    hint: "Something required is missing on the employer letter",
+  },
+  "EMP.LEAVE_COVERS_TRIP": {
+    title: "Leave dates",
+    hint: "Approved leave must cover the trip dates",
+  },
+  "EMP.PAYSLIPS_RECENT": {
+    title: "Payslips",
+    hint: "Need the last 3 recent payslips",
+  },
+  "SUS.LOW_CONFIDENCE": {
+    title: "Please double-check",
+    hint: "The system is unsure about a field — open the document and confirm",
+  },
+  "SUS.DOC_ANOMALY": {
+    title: "Odd-looking document",
+    hint: "Something looks unusual — open the page and confirm",
+  },
 };
 
+const DOC_PLAIN: Record<string, string> = {
+  passport: "passport",
+  travel_insurance: "insurance certificate",
+  application_form: "visa application form",
+  employment_letter: "employer letter",
+  bank_statement: "bank statement",
+  flight_booking: "flight booking",
+  hotel_booking: "hotel booking",
+  payslip: "payslip",
+  photo: "photo",
+  family_register: "family register",
+  cnss_certificate: "CNSS certificate",
+  travel_plan: "travel plan",
+};
+
+const FIELD_PLAIN: Record<string, string> = {
+  date_of_birth: "birth date",
+  issue_date: "issue date",
+  passport_number: "passport number",
+  position: "job title",
+  employee_name: "employee name",
+  employer_name: "employer name",
+  expiry_date: "expiry date",
+  surname: "surname",
+  given_names: "given names",
+};
+
+type AuditRow = {
+  id?: string;
+  rule_id?: string;
+  status?: string;
+  message?: string;
+  mode?: string;
+  evidence?: Array<{ doc?: string; field?: string; value?: string; page?: number }>;
+};
+
+/** Map checklist doc types / missing labels → filename patterns in the pack. */
+const DOC_FILE_PATTERNS: Record<string, RegExp> = {
+  passport: /passport/i,
+  photo: /photo/i,
+  employment_letter: /employ/i,
+  payslip: /payslip|salary/i,
+  bank_statement: /bank/i,
+  flight_booking: /flight|ticket|amadeus/i,
+  hotel_booking: /hotel|booking|accommodation/i,
+  travel_insurance: /insurance|euromed|assurance/i,
+  application_form: /application|form|france.?visa/i,
+  family_register: /family|ekhraj|kaid/i,
+  travel_plan: /travel.?plan|itinerary/i,
+  cnss_certificate: /cnss/i,
+};
+
+const RULE_DOC_HINT: Record<string, string> = {
+  "DOC.PRESENT": "application_form",
+  "PP.BLANK_PAGES": "passport",
+  "PP.MRZ_CHECKSUM": "passport",
+  "PP.MRZ_MATCHES_VIZ": "passport",
+  "PP.NOT_EXPIRED": "passport",
+  "PP.VALID_AFTER_DEPARTURE": "passport",
+  "PP.ISSUED_WITHIN_10Y": "passport",
+  "PHOTO.ISO": "photo",
+  "BANK.SUFFICIENT_FUNDS": "bank_statement",
+  "BANK.WINDOW": "bank_statement",
+  "BANK.STAMPED": "bank_statement",
+  "BANK.LARGE_RECENT_DEPOSIT": "bank_statement",
+  "ID.NAME_MATCH": "passport",
+  "ID.DOB_MATCH": "passport",
+  "ID.FORM_MATCHES_PASSPORT": "application_form",
+  "ID.PASSPORT_NO_MATCH": "passport",
+  "EMP.LETTER_FIELDS": "employment_letter",
+  "EMP.LEAVE_COVERS_TRIP": "employment_letter",
+  "EMP.PAYSLIPS_RECENT": "payslip",
+  "SUS.LOW_CONFIDENCE": "passport",
+  "SUS.DOC_ANOMALY": "passport",
+};
+
+function findFileForDoc(files: string[], docType: string | undefined): string | null {
+  if (!docType || !files.length) return null;
+  const key = docType.toLowerCase().replace(/\s+/g, "_");
+  // Prefer exact stem (passport.png over passport_phone.jpg)
+  const exact = files.find((f) => {
+    const stem = f.replace(/\.[^.]+$/, "").toLowerCase();
+    return stem === key || stem === key.replaceAll("_", "-");
+  });
+  if (exact) return exact;
+  const re = DOC_FILE_PATTERNS[key];
+  if (re) {
+    const ranked = files
+      .filter((f) => re.test(f))
+      .sort((a, b) => a.length - b.length);
+    if (ranked[0]) return ranked[0];
+  }
+  const loose = files.find((f) =>
+    f.toLowerCase().includes(key.replaceAll("_", "")),
+  );
+  return loose ?? null;
+}
+
+function fileForMissingLabel(files: string[], label: string): string | null {
+  const l = label.toLowerCase();
+  if (/photo|iso/.test(l)) return findFileForDoc(files, "photo");
+  if (/payslip|salary/.test(l)) return findFileForDoc(files, "payslip");
+  if (/passport/.test(l)) return findFileForDoc(files, "passport");
+  if (/employ|letter/.test(l)) return findFileForDoc(files, "employment_letter");
+  if (/bank/.test(l)) return findFileForDoc(files, "bank_statement");
+  if (/flight|ticket/.test(l)) return findFileForDoc(files, "flight_booking");
+  if (/hotel|accommodation/.test(l)) return findFileForDoc(files, "hotel_booking");
+  if (/insurance/.test(l)) return findFileForDoc(files, "travel_insurance");
+  if (/form|france-visas|receipt/.test(l)) return findFileForDoc(files, "application_form");
+  if (/family|ekhraj|kaid/.test(l)) return findFileForDoc(files, "family_register");
+  if (/travel plan|itinerary/.test(l)) return findFileForDoc(files, "travel_plan");
+  if (/cnss/.test(l)) return findFileForDoc(files, "cnss_certificate");
+  return null;
+}
+
+function fileForIssue(files: string[], row: AuditRow): string | null {
+  const fromEvidence = (row.evidence ?? [])
+    .map((e) => e.doc)
+    .find((d): d is string => Boolean(d) && d !== "application");
+  if (fromEvidence) {
+    const hit = findFileForDoc(files, fromEvidence);
+    if (hit) return hit;
+  }
+  const ruleId = row.rule_id ?? row.id ?? "";
+  const hint = RULE_DOC_HINT[ruleId];
+  if (hint) return findFileForDoc(files, hint);
+  return null;
+}
+
 function ruleCopy(ruleId: string | undefined) {
-  if (!ruleId) return { title: "Item to check", hint: "Confirm on the document" };
+  if (!ruleId) return { title: "Item to check", hint: "Open the document and confirm" };
   return (
     RULE_LABEL[ruleId] ?? {
-      title: ruleId.replaceAll(".", " · "),
-      hint: "Confirm on the document",
+      title: "Item to check",
+      hint: "Open the document and confirm",
     }
   );
 }
 
-function outcomePlain(outcome: string | null | undefined) {
+function plainDoc(name: string) {
+  return DOC_PLAIN[name] ?? name.replaceAll("_", " ");
+}
+
+function plainField(name: string) {
+  return FIELD_PLAIN[name] ?? name.replaceAll("_", " ");
+}
+
+/** Gloria-facing body text — no rule ids, field paths, or confidence scores. */
+function issuePlain(row: AuditRow): string {
+  const ruleId = row.rule_id ?? row.id ?? "";
+  const copy = ruleCopy(ruleId);
+  const msg = (row.message ?? "").trim();
+
+  if (ruleId === "SUS.LOW_CONFIDENCE") {
+    const fields = [...msg.matchAll(/([a-z_]+)\.([a-z_]+)=([0-9.]+)/gi)].map(
+      (m) => plainField(m[2]),
+    );
+    const uniq = [...new Set(fields)];
+    if (uniq.length === 1) {
+      return `We're unsure about the ${uniq[0]} — open the document and confirm it looks right`;
+    }
+    if (uniq.length > 1) {
+      return `We're unsure about: ${uniq.join(", ")} — open the document and confirm`;
+    }
+    return copy.hint;
+  }
+
+  const missingField = msg.match(/Missing\s+([a-z_]+)\s+on\s+([a-z_]+)/i);
+  if (missingField) {
+    return `Couldn’t read the ${plainField(missingField[1])} on the ${plainDoc(missingField[2])} — open it and confirm`;
+  }
+
+  const missingFields = msg.match(/Missing fields:\s*(.+)$/i);
+  if (missingFields) {
+    const fields = missingFields[1]
+      .split(",")
+      .map((s) => plainField(s.trim()))
+      .filter(Boolean);
+    return `Missing on this letter: ${fields.join(", ")} — ask the applicant to fix or confirm on the page`;
+  }
+
+  if (/mismatch/i.test(msg)) {
+    return "Details don’t match across documents — open them and compare";
+  }
+
+  if (/manual officer confirmation/i.test(msg)) {
+    return copy.hint;
+  }
+
+  if (!msg || /^confirm on the document$/i.test(msg)) {
+    return copy.hint;
+  }
+
+  // Strip leftover technical tokens
+  if (/^[A-Z][A-Z0-9_.]+$/.test(msg) || /confidence|field_meta|null/i.test(msg)) {
+    return copy.hint;
+  }
+
+  return msg;
+}
+
+function parseMissingDocs(message: string | undefined): string[] {
+  if (!message) return [];
+  const m = message.match(/Missing:\s*(.+)$/i);
+  if (!m?.[1]) return [];
+  return m[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function partitionIssues(results: AuditRow[]) {
+  const fails = results.filter((r) => (r.status ?? "").toUpperCase() === "FAIL");
+  const youCheck = results.filter((r) => {
+    const s = (r.status ?? "").toUpperCase();
+    return s === "NEEDS_HUMAN" || r.mode === "manual";
+  });
+  const present = fails.find(
+    (r) => (r.rule_id ?? r.id ?? "") === "DOC.PRESENT",
+  );
+  const missingDocs = parseMissingDocs(present?.message);
+  const mustFix = fails.filter(
+    (r) => (r.rule_id ?? r.id ?? "") !== "DOC.PRESENT",
+  );
+  return { missingDocs, mustFix, youCheck, failCount: fails.length };
+}
+
+function outcomePlain(
+  outcome: string | null | undefined,
+  issues?: ReturnType<typeof partitionIssues>,
+) {
+  const missingN = issues?.missingDocs.length ?? 0;
+  const fixN = issues?.mustFix.length ?? 0;
+  const youN = issues?.youCheck.length ?? 0;
+
   switch (outcome) {
     case "READY_FOR_APPROVAL":
       return {
         title: "Approve",
         auto: "passed" as const,
-        body: "Code checks are clear. Confirm the look-items below, then mark ready.",
+        body:
+          youN > 0
+            ? `${youN} look-item${youN === 1 ? "" : "s"} for your eye — then mark ready for TLS.`
+            : "Code checks are clear. Confirm look-items, then mark ready for TLS.",
         tone: "neutral" as Tone,
       };
     case "NEEDS_GLORIA":
       return {
         title: "Flag",
         auto: "attention" as const,
-        body: "Something needs your judgment before the file is ready.",
+        body: `${youN || "Some"} item${youN === 1 ? "" : "s"} need your judgment before this file is ready.`,
         tone: "attention" as Tone,
       };
-    case "SEND_BACK":
+    case "SEND_BACK": {
+      const parts: string[] = [];
+      if (missingN) parts.push(`${missingN} missing document${missingN === 1 ? "" : "s"}`);
+      if (fixN) parts.push(`${fixN} failed check${fixN === 1 ? "" : "s"}`);
+      if (youN) parts.push(`${youN} for your eye`);
       return {
         title: "Send back",
         auto: "failed" as const,
-        body: "Code checks found issues. Confirm send-back to the applicant.",
+        body: parts.length
+          ? `${parts.join(" · ")}. Confirm send-back (draft below).`
+          : "Code checks found issues. Confirm send-back to the applicant.",
         tone: "critical" as Tone,
       };
+    }
     default:
       return {
         title: "Review",
@@ -342,20 +632,24 @@ const AREA_META: {
 
 function WorkspaceBlock() {
   return (
-    <div className={cx(ghostButtonMuted, buttonLg, "pointer-events-none w-full pr-2 pl-2 text-left")}>
-      <span className={cx(avatarSquare, "size-[28px] overflow-hidden")}>
+    <div
+      className={cx(
+        ghostButtonMuted,
+        "pointer-events-none flex h-9 w-full items-center gap-2 rounded-[var(--rb-r-sm,6px)] px-1.5 text-left",
+      )}
+    >
+      <span className={cx(avatarSquare, "size-6 overflow-hidden")}>
         <Image
           src="/visaref-mark.svg"
           alt=""
-          width={28}
-          height={28}
+          width={24}
+          height={24}
           className="size-full"
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cx(typeLabel, text1, "block truncate")}>VisaRef</span>
-        <span className={cx(typeCaption, text3, "block truncate")}>
-          TLS Beirut · Gloria
+        <span className={cx(typeLabel, text1, "block truncate text-[13px]")}>
+          VisaRef
         </span>
       </span>
     </div>
@@ -367,11 +661,15 @@ function NavigationFrame({
   onSelectArea,
   counts,
   onClose,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   areaId: NavView;
   onSelectArea: (id: NavView) => void;
   counts: Record<NavView, number>;
   onClose?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }) {
   const {
     ref: navRef,
@@ -379,121 +677,212 @@ function NavigationFrame({
     onScroll: onNavScroll,
   } = useScrollFade<HTMLElement>();
 
-  const area = AREA_META.find((a) => a.id === areaId) ?? AREA_META[0];
-
   return (
-    <>
+    <div
+      className={cx(
+        sidebarSurface,
+        "flex shrink-0 flex-col transition-[width] duration-[160ms] ease-[cubic-bezier(0.2,0,0,1)]",
+        collapsed ? "w-14" : "w-[11.5rem]",
+      )}
+    >
       <div
         className={cx(
-          sidebarSurface,
-          "flex w-14 shrink-0 flex-col items-center gap-1 px-2 py-3",
+          "flex shrink-0 items-center gap-1 py-1.5",
+          collapsed ? "flex-col px-1.5" : "px-1.5",
         )}
       >
-        {onClose && (
+        {collapsed ? (
+          <button
+            type="button"
+            title="VisaRef"
+            aria-label="VisaRef"
+            onClick={onToggleCollapsed}
+            className={cx(ghostButton, "size-9 justify-center p-0")}
+          >
+            <span className={cx(avatarSquare, "size-6 overflow-hidden")}>
+              <Image
+                src="/visaref-mark.svg"
+                alt=""
+                width={24}
+                height={24}
+                className="size-full"
+              />
+            </span>
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <WorkspaceBlock />
+          </div>
+        )}
+        {onToggleCollapsed ? (
+          <button
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand" : "Collapse"}
+            onClick={onToggleCollapsed}
+            className={cx(ghostButton, iconButtonMd, "size-7 shrink-0")}
+          >
+            <HugeiconsIcon
+              icon={ArrowRight02Icon}
+              size={14}
+              strokeWidth={1.8}
+              className={cx(
+                "transition-transform duration-[160ms] ease-[cubic-bezier(0.2,0,0,1)]",
+                collapsed ? "" : "rotate-180",
+              )}
+            />
+          </button>
+        ) : null}
+        {onClose ? (
           <button
             type="button"
             aria-label="Close navigation"
             onClick={onClose}
-            className={cx(ghostButton, iconButtonMd, "mb-1")}
+            className={cx(ghostButton, iconButtonMd, "size-7 shrink-0")}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.8} />
+            <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.8} />
           </button>
-        )}
-
-        <nav aria-label="Areas" className="flex flex-col items-center gap-1">
-          {AREA_META.map((item) => {
-            const selected = item.id === areaId;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                title={item.label}
-                aria-label={item.label}
-                aria-current={selected ? "page" : undefined}
-                onClick={() => onSelectArea(item.id)}
-                className={cx(navItem, "justify-center")}
-              >
-                <HugeiconsIcon
-                  icon={item.icon}
-                  size={16}
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-              </button>
-            );
-          })}
-        </nav>
-
-        <span
-          title="Gloria · visa officer"
-          className={cx(avatar, "mt-auto cursor-default")}
-        >
-          <span className={avatarFallback}>GL</span>
-        </span>
+        ) : null}
       </div>
 
-      <div className={cx(sidebarSurface, "flex w-64 min-w-0 flex-col")}>
-        <div className="shrink-0 px-2 py-1.5">
-          <WorkspaceBlock />
-        </div>
-
-        <div className="relative min-h-0 flex-1">
-          <nav
-            ref={navRef}
-            onScroll={onNavScroll}
-            aria-label={area.label}
-            className="h-full overflow-y-auto px-2 pb-3"
-          >
-            <p className={navGroupLabel}>Desk</p>
-            <ul className="space-y-0.5">
-              {AREA_META.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    aria-current={item.id === areaId ? "page" : undefined}
-                    onClick={() => onSelectArea(item.id)}
-                    className={navItem}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {item.id !== "inbox" && (
-                      <span className={cx(navCount, "shrink-0")}>
-                        {counts[item.id]}
+      <div className="relative min-h-0 flex-1">
+        <nav
+          ref={navRef}
+          onScroll={onNavScroll}
+          aria-label="Desk"
+          className={cx(
+            "h-full overflow-y-auto pb-2",
+            collapsed ? "px-1.5" : "px-1.5",
+          )}
+        >
+          {!collapsed ? (
+            <p className={cx(navGroupLabel, "pt-1")}>Desk</p>
+          ) : (
+            <div className="h-1" />
+          )}
+          <ul className={cx("space-y-0.5", collapsed && "flex flex-col items-center")}>
+            {AREA_META.map((item) => (
+              <li key={item.id} className={collapsed ? "w-full" : undefined}>
+                <button
+                  type="button"
+                  title={collapsed ? item.label : undefined}
+                  aria-label={item.label}
+                  aria-current={item.id === areaId ? "page" : undefined}
+                  onClick={() => onSelectArea(item.id)}
+                  className={cx(
+                    navItem,
+                    collapsed && "justify-center px-0",
+                  )}
+                >
+                  <HugeiconsIcon
+                    icon={item.icon}
+                    size={15}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                    className="shrink-0 opacity-80"
+                  />
+                  {!collapsed ? (
+                    <>
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.label}
                       </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      {item.id !== "inbox" && item.id !== "upload" ? (
+                        <span className={cx(navCount, "shrink-0")}>
+                          {counts[item.id]}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
 
-            <p className={navGroupLabel}>Destination</p>
-            <ul className="space-y-0.5">
-              <li>
-                <span className={cx(navItem, "cursor-default hover:bg-transparent")}>
-                  <HugeiconsIcon icon={PassportIcon} size={16} strokeWidth={1.8} />
-                  <span className="min-w-0 flex-1 truncate">FR Schengen</span>
+          {!collapsed ? (
+            <>
+              <p className={navGroupLabel}>Destination</p>
+              <ul className="space-y-0.5">
+                <li>
+                  <span
+                    className={cx(
+                      navItem,
+                      "cursor-default hover:bg-transparent",
+                    )}
+                  >
+                    <HugeiconsIcon
+                      icon={PassportIcon}
+                      size={15}
+                      strokeWidth={1.8}
+                      className="shrink-0 opacity-80"
+                    />
+                    <span className="min-w-0 flex-1 truncate">FR Schengen</span>
+                  </span>
+                </li>
+              </ul>
+            </>
+          ) : (
+            <ul className="mt-1 flex flex-col items-center space-y-0.5">
+              <li className="w-full">
+                <span
+                  title="FR Schengen"
+                  className={cx(
+                    navItem,
+                    "cursor-default justify-center px-0 hover:bg-transparent",
+                  )}
+                >
+                  <HugeiconsIcon
+                    icon={PassportIcon}
+                    size={15}
+                    strokeWidth={1.8}
+                    className="shrink-0 opacity-80"
+                  />
                 </span>
               </li>
             </ul>
-          </nav>
-          <div
-            aria-hidden="true"
-            className={cx(
-              fadeTopOnTray,
-              "pointer-events-none absolute inset-x-0 top-0 h-8",
-              navEdges.start ? "opacity-100" : "opacity-0",
-            )}
-          />
-          <div
-            aria-hidden="true"
-            className={cx(
-              fadeBottomOnTray,
-              "pointer-events-none absolute inset-x-0 bottom-0 h-8",
-              navEdges.end ? "opacity-100" : "opacity-0",
-            )}
-          />
-        </div>
+          )}
+        </nav>
+        {!collapsed ? (
+          <>
+            <div
+              aria-hidden="true"
+              className={cx(
+                fadeTopOnTray,
+                "pointer-events-none absolute inset-x-0 top-0 h-8",
+                navEdges.start ? "opacity-100" : "opacity-0",
+              )}
+            />
+            <div
+              aria-hidden="true"
+              className={cx(
+                fadeBottomOnTray,
+                "pointer-events-none absolute inset-x-0 bottom-0 h-8",
+                navEdges.end ? "opacity-100" : "opacity-0",
+              )}
+            />
+          </>
+        ) : null}
       </div>
-    </>
+
+      <div
+        className={cx(
+          "flex shrink-0 items-center border-t border-neutral-900/8 py-2 dark:border-neutral-100/8",
+          collapsed ? "justify-center px-1" : "gap-2 px-2",
+        )}
+      >
+        <span
+          title="Gloria"
+          className={cx(avatar, "size-7 shrink-0 cursor-default")}
+        >
+          <span className={cx(avatarFallback, "text-[11px]")}>GL</span>
+        </span>
+        {!collapsed ? (
+          <span className={cx(typeCaption, text3, "min-w-0 truncate")}>
+            Gloria
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -509,8 +898,8 @@ function DocPagePreview({
   const isPdf = filename.toLowerCase().endsWith(".pdf");
 
   return (
-    <div className="border-t border-neutral-900/8 dark:border-neutral-100/8">
-      <div className="flex items-center gap-2 px-3 py-2">
+    <div className="flex min-h-0 flex-1 flex-col border-t border-neutral-900/8 dark:border-neutral-100/8">
+      <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
         <span className={cx(typeCaption, text3, "min-w-0 flex-1 truncate")}>
           {filename}
           {isPdf ? " · page 1" : ""}
@@ -524,20 +913,18 @@ function DocPagePreview({
           Original
         </a>
       </div>
-      <div className="relative min-h-[14rem] bg-neutral-100 px-2 pb-2 dark:bg-neutral-950">
+      <div className="relative min-h-0 flex-1 bg-neutral-100 px-2 pb-2 dark:bg-neutral-950">
         {status === "loading" ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-2 z-10 flex flex-col gap-2 rounded-[var(--rb-r-sm,6px)] p-4"
+            className="pointer-events-none absolute inset-2 z-10 flex flex-col gap-2 rounded-[var(--rb-r-sm,6px)] p-3"
           >
-            <span className={cx(skeleton, "block h-3 w-[40%]")} />
-            <span className={cx(skeleton, "mt-2 block h-[10rem] w-full")} />
-            <span className={cx(skeleton, "block h-2.5 w-[70%]")} />
-            <span className={cx(skeleton, "block h-2.5 w-[55%]")} />
+            <span className={cx(skeleton, "block h-2.5 w-[40%]")} />
+            <span className={cx(skeleton, "mt-1 block h-full min-h-[8rem] w-full")} />
           </div>
         ) : null}
         {status === "err" ? (
-          <p className={cx(typeCaption, text3, "px-2 py-8 text-center")}>
+          <p className={cx(typeCaption, text3, "px-2 py-6 text-center")}>
             Preview unavailable — open Original
           </p>
         ) : (
@@ -548,11 +935,10 @@ function DocPagePreview({
             onLoad={() => setStatus("ok")}
             onError={() => setStatus("err")}
             ref={(el) => {
-              // Cached images can fire before React attaches onLoad
               if (el?.complete && el.naturalWidth > 0) setStatus("ok");
             }}
             className={cx(
-              "relative z-0 mx-auto max-h-[28rem] w-full object-contain transition-opacity duration-150",
+              "relative z-0 mx-auto h-full max-h-full w-full object-contain object-top transition-opacity duration-150",
               status === "ok" ? "opacity-100" : "opacity-0",
             )}
           />
@@ -577,17 +963,70 @@ function ApprovalPanel({
     queryFn: () => fetchApplication(applicationId),
   });
 
+  const meta = detailQuery.data?.meta;
+  const audit = detailQuery.data?.report?.audit;
+  const outcome = (audit?.outcome ?? meta?.outcome) as string | undefined;
+  const results = (audit?.results ?? []) as AuditRow[];
+  const issues = partitionIssues(results);
+  const lookItems = [
+    ...issues.mustFix,
+    ...issues.youCheck,
+  ];
+  const plain = outcomePlain(outcome, issues);
+  const draft = audit?.drafts?.[0];
+  const files = detailQuery.data?.files ?? [];
+  const fileKey = files.join("\0");
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [previewTick, setPreviewTick] = useState(0);
+  const [docsFlash, setDocsFlash] = useState(false);
+  const [confirmedIds, setConfirmedIds] = useState<Record<string, boolean>>({});
+  const [toEmail, setToEmail] = useState("");
+  const docsRef = useRef<HTMLElement | null>(null);
+  const hasErrors =
+    outcome === "SEND_BACK" ||
+    issues.missingDocs.length > 0 ||
+    issues.mustFix.length > 0;
+  const alreadyDecided =
+    Boolean(meta?.status?.startsWith("approved")) ||
+    Boolean(meta?.status?.startsWith("sent_back"));
+  const youCheckIds = issues.youCheck.map(
+    (r, i) => String(r.rule_id ?? r.id ?? `you-${i}`),
+  );
+  const allYouConfirmed =
+    youCheckIds.length === 0 ||
+    youCheckIds.every((id) => confirmedIds[id]);
+  const emailOk = /[\w.+-]+@[\w.-]+\.\w+/.test(toEmail.trim());
+  const canApprove = !hasErrors && allYouConfirmed && emailOk && Boolean(draft?.body);
+  const canSendEmail = emailOk && Boolean(draft?.body);
+  const draftIsReady =
+    Boolean(draft?.body) &&
+    (!draft?.rule_ids || draft.rule_ids.length === 0) &&
+    !hasErrors;
+
   const actionMut = useMutation({
     mutationFn: (action: "approve" | "send_back" | "review") =>
-      postGloriaAction(applicationId, action),
-    onSuccess: (_d, action) => {
-      toast.success(
-        action === "approve"
-          ? "Marked ready — you take this to TLS yourself"
-          : action === "send_back"
-            ? "Marked send-back — moved out of queue"
-            : "Still in your queue",
-      );
+      postGloriaAction(
+        applicationId,
+        action,
+        "Gloria",
+        draft?.id,
+        action === "review" ? undefined : toEmail.trim(),
+      ),
+    onSuccess: (data, action) => {
+      const delivery = data.delivery;
+      if (action === "review") {
+        toast.success("Still in your queue");
+      } else if (delivery?.to) {
+        toast.success(
+          action === "approve"
+            ? `Ready for TLS — emailed ${delivery.to}`
+            : `Emailed send-back to ${delivery.to}`,
+        );
+      } else {
+        toast.success(
+          action === "approve" ? "Marked ready" : "Send-back sent",
+        );
+      }
       qc.invalidateQueries({ queryKey: ["applications"] });
       qc.invalidateQueries({ queryKey: ["application", applicationId] });
       if (action !== "review") onDone();
@@ -595,21 +1034,33 @@ function ApprovalPanel({
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const meta = detailQuery.data?.meta;
-  const audit = detailQuery.data?.report?.audit;
-  const outcome = (audit?.outcome ?? meta?.outcome) as string | undefined;
-  const plain = outcomePlain(outcome);
-  const results = audit?.results ?? [];
-  const lookItems = results.filter((r) =>
-    ["FAIL", "NEEDS_HUMAN"].includes((r.status ?? "").toUpperCase()),
+  useEffect(() => {
+    setConfirmedIds({});
+  }, [applicationId]);
+
+  useEffect(() => {
+    const raw =
+      (typeof meta?.applicant_email === "string" && meta.applicant_email) ||
+      (typeof meta?.email_sender === "string" && meta.email_sender) ||
+      "";
+    const m = raw.match(/[\w.+-]+@[\w.-]+\.\w+/);
+    setToEmail(m ? m[0] : "");
+  }, [applicationId, meta?.applicant_email, meta?.email_sender]);
+
+  const openDoc = useCallback(
+    (filename: string | null) => {
+      if (!filename || !files.includes(filename)) return;
+      setPreviewFile(filename);
+      // Remount preview even if the same file was already selected
+      setPreviewTick((n) => n + 1);
+      setDocsFlash(true);
+      window.setTimeout(() => setDocsFlash(false), 700);
+      requestAnimationFrame(() => {
+        docsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    },
+    [files],
   );
-  const draft = audit?.drafts?.[0];
-  const files = detailQuery.data?.files ?? [];
-  const fileKey = files.join("\0");
-  const [previewFile, setPreviewFile] = useState<string | null>(null);
-  const alreadyDecided =
-    Boolean(meta?.status?.startsWith("approved")) ||
-    Boolean(meta?.status?.startsWith("sent_back"));
 
   // Demo: always show a document — prefer passport image, else first file
   useEffect(() => {
@@ -648,7 +1099,7 @@ function ApprovalPanel({
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] p-3 sm:p-4">
         {detailQuery.isLoading ? (
           <section className={panel} aria-busy="true" aria-label="Loading file">
             <div className={cx(panelHead, "h-10")}>
@@ -677,13 +1128,14 @@ function ApprovalPanel({
             </div>
           </section>
         ) : (
-          <>
-            <section className={panel}>
+          <div className="grid min-h-0 gap-3 xl:grid-cols-2 xl:gap-3">
+            <div className="flex min-h-0 flex-col gap-3">
+            <section className={cx(panel, "min-h-0 flex-1")}>
               <div className={cx(panelHead, "h-10")}>
                 <span className={inkSlot}>Your call</span>
                 <span className={cx(frameTitle, "flex-1")}>Decision</span>
               </div>
-              <div className={cx(panelBody, "gap-0 px-0 pt-0 pb-0")}>
+              <div className={cx(panelBody, "mb-0 min-h-0 flex-1 gap-0 overflow-y-auto px-0 pt-0 pb-0")}>
                 <div className="flex items-start gap-2.5 border-b border-neutral-900/8 px-3 py-2.5 dark:border-neutral-100/8">
                   <HugeiconsIcon
                     icon={
@@ -717,72 +1169,252 @@ function ApprovalPanel({
                   </div>
                 </div>
 
-                {lookItems.length > 0 ? (
-                  <div>
-                    <p
-                      className={cx(
-                        typeCaption,
-                        text3,
-                        "px-3 pt-2.5 pb-1",
-                      )}
-                    >
-                      Look-items · {lookItems.length}
-                    </p>
-                    <ul className={rowsRuled}>
-                      {lookItems.slice(0, 6).map((r, i) => {
-                        const id = String(r.rule_id ?? r.id ?? i);
-                        const isFail =
-                          (r.status ?? "").toUpperCase() === "FAIL";
-                        const copy = ruleCopy(r.rule_id ?? r.id);
-                        return (
-                          <li
-                            key={id}
-                            className="flex items-start gap-2.5 px-3 py-2.5"
-                          >
-                            <span
-                              className={cx(
-                                "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border",
-                                isFail
-                                  ? "border-[oklch(51%_0.18_26/0.45)] text-[oklch(51%_0.18_26)]"
-                                  : "border-neutral-900/20 text-neutral-900/40 dark:border-neutral-100/25 dark:text-neutral-100/40",
-                              )}
-                              aria-hidden
-                            >
-                              {isFail ? (
-                                <HugeiconsIcon icon={Alert02Icon} size={10} />
-                              ) : (
-                                <span className="size-1.5 rounded-[1px] bg-current opacity-40" />
-                              )}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className={cx(typeLabel, text1, "block")}>
-                                {copy.title}
-                              </span>
-                              <span
-                                className={cx(typeCaption, text3, "mt-0.5 block")}
-                              >
-                                {isFail
-                                  ? r.message || "Failed check"
-                                  : copy.hint}
-                              </span>
-                            </span>
-                            <span
-                              className={cx(
-                                typeCaption,
-                                "shrink-0",
-                                isFail ? statusFail : statusWarn,
-                              )}
-                            >
-                              {isFail ? "Fail" : "You"}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                {issues.missingDocs.length > 0 ||
+                issues.mustFix.length > 0 ||
+                issues.youCheck.length > 0 ? (
+                  <div className="space-y-0">
+                    {issues.missingDocs.length > 0 ? (
+                      <div className="border-b border-neutral-900/8 dark:border-neutral-100/8">
+                        <p
+                          className={cx(
+                            typeCaption,
+                            statusFail,
+                            "px-3 pt-2.5 pb-1",
+                          )}
+                        >
+                          Missing from pack · {issues.missingDocs.length}
+                        </p>
+                        <ul className={rowsRuled}>
+                          {issues.missingDocs.map((label) => {
+                            const linked = fileForMissingLabel(files, label);
+                            return (
+                              <li key={label}>
+                                <button
+                                  type="button"
+                                  disabled={!linked}
+                                  onClick={() => openDoc(linked)}
+                                  className={cx(
+                                    "flex w-full items-start gap-2.5 px-3 py-2.5 text-left",
+                                    linked
+                                      ? cx(
+                                          hoverFill,
+                                          pressedFill,
+                                          transition,
+                                          focusRingInset,
+                                          "cursor-pointer",
+                                        )
+                                      : "cursor-default opacity-90",
+                                  )}
+                                >
+                                  <span
+                                    className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-[oklch(51%_0.18_26/0.45)] text-[oklch(51%_0.18_26)]"
+                                    aria-hidden
+                                  >
+                                    <HugeiconsIcon icon={Alert02Icon} size={10} />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className={cx(typeLabel, text1, "block")}>
+                                      {label}
+                                    </span>
+                                    <span
+                                      className={cx(
+                                        typeCaption,
+                                        text3,
+                                        "mt-0.5 block",
+                                      )}
+                                    >
+                                      {linked
+                                        ? "Open related file in Docs"
+                                        : "Ask applicant to upload this document"}
+                                    </span>
+                                  </span>
+                                  <span
+                                    className={cx(
+                                      typeCaption,
+                                      statusFail,
+                                      "shrink-0",
+                                    )}
+                                  >
+                                    Missing
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {issues.mustFix.length > 0 ? (
+                      <div className="border-b border-neutral-900/8 dark:border-neutral-100/8">
+                        <p
+                          className={cx(
+                            typeCaption,
+                            statusFail,
+                            "px-3 pt-2.5 pb-1",
+                          )}
+                        >
+                          Ask applicant to fix · {issues.mustFix.length}
+                        </p>
+                        <ul className={rowsRuled}>
+                          {issues.mustFix.map((r, i) => {
+                            const id = String(r.rule_id ?? r.id ?? i);
+                            const copy = ruleCopy(r.rule_id ?? r.id);
+                            const linked = fileForIssue(files, r);
+                            return (
+                              <li key={id}>
+                                <button
+                                  type="button"
+                                  disabled={!linked}
+                                  onClick={() => openDoc(linked)}
+                                  className={cx(
+                                    "flex w-full items-start gap-2.5 px-3 py-2.5 text-left",
+                                    linked
+                                      ? cx(
+                                          hoverFill,
+                                          pressedFill,
+                                          transition,
+                                          focusRingInset,
+                                          "cursor-pointer",
+                                        )
+                                      : "cursor-default",
+                                  )}
+                                >
+                                  <span
+                                    className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border border-[oklch(51%_0.18_26/0.45)] text-[oklch(51%_0.18_26)]"
+                                    aria-hidden
+                                  >
+                                    <HugeiconsIcon icon={Alert02Icon} size={10} />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className={cx(typeLabel, text1, "block")}>
+                                      {copy.title}
+                                    </span>
+                                    <span
+                                      className={cx(
+                                        typeCaption,
+                                        text3,
+                                        "mt-0.5 block",
+                                      )}
+                                    >
+                                    {issuePlain(r)}
+                                      {linked ? " · tap to open" : ""}
+                                    </span>
+                                </span>
+                                <span
+                                    className={cx(
+                                      typeCaption,
+                                      statusFail,
+                                      "shrink-0",
+                                    )}
+                                  >
+                                    Fix
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {issues.youCheck.length > 0 ? (
+                      <div>
+                        <p
+                          className={cx(
+                            typeCaption,
+                            statusWarn,
+                            "px-3 pt-2.5 pb-1",
+                          )}
+                        >
+                          You confirm ·{" "}
+                          {youCheckIds.filter((id) => confirmedIds[id]).length}/
+                          {issues.youCheck.length}
+                        </p>
+                        <ul className={rowsRuled}>
+                          {issues.youCheck.map((r, i) => {
+                            const id = String(r.rule_id ?? r.id ?? `you-${i}`);
+                            const copy = ruleCopy(r.rule_id ?? r.id);
+                            const linked = fileForIssue(files, r);
+                            const checked = Boolean(confirmedIds[id]);
+                            return (
+                              <li key={id}>
+                                <div
+                                  className={cx(
+                                    "flex w-full items-start gap-2.5 px-3 py-2.5",
+                                    checked && "bg-neutral-900/[0.03] dark:bg-neutral-100/[0.04]",
+                                  )}
+                                >
+                                  <label
+                                    className={cx(
+                                      "mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border transition-colors",
+                                      checked
+                                        ? "border-[oklch(48%_0.12_145)] bg-[oklch(48%_0.12_145)] text-white"
+                                        : "border-neutral-900/25 dark:border-neutral-100/30",
+                                      focusRingInset,
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="sr-only"
+                                      checked={checked}
+                                      onChange={() => {
+                                        setConfirmedIds((prev) => ({
+                                          ...prev,
+                                          [id]: !prev[id],
+                                        }));
+                                        if (linked) openDoc(linked);
+                                      }}
+                                    />
+                                    {checked ? (
+                                      <HugeiconsIcon icon={Tick02Icon} size={10} />
+                                    ) : null}
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={!linked}
+                                    onClick={() => openDoc(linked)}
+                                    className={cx(
+                                      "min-w-0 flex-1 text-left",
+                                      linked
+                                        ? cx(transition, "cursor-pointer")
+                                        : "cursor-default",
+                                    )}
+                                  >
+                                    <span className={cx(typeLabel, text1, "block")}>
+                                      {copy.title}
+                                    </span>
+                                    <span
+                                      className={cx(
+                                        typeCaption,
+                                        text3,
+                                        "mt-0.5 block",
+                                      )}
+                                    >
+                                      {issuePlain(r)}
+                                      {linked ? " · open doc, then tick" : " · tick when checked"}
+                                    </span>
+                                  </button>
+                                  <span
+                                    className={cx(
+                                      typeCaption,
+                                      checked ? statusOk : statusWarn,
+                                      "shrink-0",
+                                    )}
+                                  >
+                                    {checked ? "OK" : "Check"}
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className={cx(typeBodySm, text2, "px-3 py-2.5")}>
-                    No look-items — approve if the file looks complete.
+                    No issues — approve if the file looks complete.
                   </p>
                 )}
 
@@ -828,40 +1460,80 @@ function ApprovalPanel({
                 </div>
               </div>
               {!alreadyDecided ? (
-                <div className={panelFoot}>
-                  <button
-                    type="button"
-                    className={cx(secondaryButton, buttonSm)}
-                    disabled={actionMut.isPending}
-                    onClick={() => actionMut.mutate("review")}
-                  >
-                    Flag
-                  </button>
-                  <button
-                    type="button"
-                    className={cx(secondaryButton, buttonSm)}
-                    disabled={actionMut.isPending}
-                    onClick={() => actionMut.mutate("send_back")}
-                  >
-                    Send back
-                  </button>
-                  <button
-                    type="button"
-                    className={cx(primaryButton, buttonSm)}
-                    disabled={actionMut.isPending}
-                    onClick={() => actionMut.mutate("approve")}
-                  >
-                    {actionMut.isPending ? (
-                      <HugeiconsIcon
-                        icon={Loading03Icon}
-                        size={12}
-                        className="animate-spin"
-                      />
+                <div className={cx(panelFoot, "flex-col items-stretch gap-2")}>
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className={cx(typeCaption, text3)}>
+                      Send to (applicant email)
+                    </span>
+                    <input
+                      type="email"
+                      value={toEmail}
+                      onChange={(e) => setToEmail(e.target.value)}
+                      placeholder="applicant@email.com"
+                      className={cx(
+                        "h-8 w-full rounded-[var(--rb-r-sm,6px)] border border-neutral-900/15 bg-white px-2.5 text-[13px] text-neutral-900 outline-none focus-visible:border-neutral-900/40 dark:border-neutral-100/20 dark:bg-neutral-950 dark:text-neutral-100",
+                      )}
+                    />
+                  </label>
+                  {!emailOk ? (
+                    <p className={cx(typeCaption, statusWarn)}>
+                      Enter the correspondent email — the button sends SMTP from your Gmail
+                    </p>
+                  ) : null}
+                  {!hasErrors && !allYouConfirmed ? (
+                    <p className={cx(typeCaption, statusWarn)}>
+                      Tick every “You confirm” item before approving
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      className={cx(secondaryButton, buttonSm)}
+                      disabled={actionMut.isPending}
+                      onClick={() => actionMut.mutate("review")}
+                    >
+                      Flag
+                    </button>
+                    {hasErrors ? (
+                      <button
+                        type="button"
+                        className={cx(primaryButton, buttonSm)}
+                        disabled={actionMut.isPending || !canSendEmail}
+                        onClick={() => actionMut.mutate("send_back")}
+                        title="SMTP the draft below to this address"
+                      >
+                        {actionMut.isPending ? (
+                          <HugeiconsIcon
+                            icon={Loading03Icon}
+                            size={12}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <HugeiconsIcon icon={Mail01Icon} size={12} />
+                        )}
+                        Send email
+                      </button>
                     ) : (
-                      <HugeiconsIcon icon={Tick02Icon} size={12} />
+                      <button
+                        type="button"
+                        className={cx(primaryButton, buttonSm)}
+                        disabled={actionMut.isPending || !canApprove}
+                        onClick={() => actionMut.mutate("approve")}
+                        title="Mark ready + SMTP the ready draft"
+                      >
+                        {actionMut.isPending ? (
+                          <HugeiconsIcon
+                            icon={Loading03Icon}
+                            size={12}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <HugeiconsIcon icon={Mail01Icon} size={12} />
+                        )}
+                        Approve & email
+                      </button>
                     )}
-                    Approve
-                  </button>
+                  </div>
                 </div>
               ) : (
                 <div className={panelFoot}>
@@ -872,8 +1544,52 @@ function ApprovalPanel({
               )}
             </section>
 
+            {draft?.body ? (
+              <section
+                id="applicant-draft"
+                className={cx(panel, "max-h-[40%] shrink-0")}
+              >
+                <div className={cx(panelHead, "h-10")}>
+                  <span className={inkSlot}>Draft</span>
+                  <span className={cx(frameTitle, "flex-1")}>
+                    {draftIsReady
+                      ? "Ready-for-TLS message"
+                      : "Send-back message"}
+                  </span>
+                  <span className={cx(typeCaption, text3)}>
+                    {draft.status || "DRAFT"}
+                  </span>
+                </div>
+                <div className={cx(panelBody, "max-h-36 overflow-y-auto p-2.5")}>
+                  <pre
+                    className={cx(
+                      typeCaption,
+                      text2,
+                      "whitespace-pre-wrap font-sans leading-relaxed",
+                    )}
+                  >
+                    {draft.body}
+                  </pre>
+                  <p className={cx(typeCaption, text3, "mt-2")}>
+                    {emailOk
+                      ? `Confirm above emails this to ${toEmail.trim()} via Gmail SMTP.`
+                      : "Enter the applicant email above — confirm sends it directly."}
+                  </p>
+                </div>
+              </section>
+            ) : null}
+            </div>
+            <div className="flex min-h-[14rem] flex-col xl:min-h-0">
             {files.length > 0 ? (
-              <section className={panel}>
+              <section
+                ref={docsRef}
+                className={cx(
+                  panel,
+                  "flex h-full min-h-0 flex-1 flex-col transition-[box-shadow,border-color] duration-300",
+                  docsFlash &&
+                    "border-neutral-900/35 shadow-[0_0_0_2px_rgb(0_0_0/0.08)] dark:border-neutral-100/40 dark:shadow-[0_0_0_2px_rgb(255_255_255/0.12)]",
+                )}
+              >
                 <div className={cx(panelHead, "h-10")}>
                   <span className={inkSlot}>Docs</span>
                   <span className={cx(frameTitle, "flex-1")}>
@@ -883,8 +1599,13 @@ function ApprovalPanel({
                     {files.length}
                   </span>
                 </div>
-                <div className={cx(panelBody, "gap-0 p-0")}>
-                  <ul className="flex gap-1.5 overflow-x-auto px-3 py-2">
+                <div
+                  className={cx(
+                    panelBody,
+                    "mb-0 flex min-h-0 flex-1 flex-col gap-0 p-0",
+                  )}
+                >
+                  <ul className="flex shrink-0 gap-1.5 overflow-x-auto px-3 py-2">
                     {files.map((f) => (
                       <li key={f} className="shrink-0">
                         <button
@@ -908,7 +1629,7 @@ function ApprovalPanel({
                   </ul>
                   {previewFile ? (
                     <DocPagePreview
-                      key={previewFile}
+                      key={`${previewFile}:${previewTick}`}
                       applicationId={applicationId}
                       filename={previewFile}
                     />
@@ -917,34 +1638,8 @@ function ApprovalPanel({
               </section>
             ) : null}
 
-            {draft?.body ? (
-              <section className={panel}>
-                <div className={cx(panelHead, "h-10")}>
-                  <span className={inkSlot}>Draft</span>
-                  <span className={cx(frameTitle, "flex-1")}>
-                    Send-back message
-                  </span>
-                  <span className={cx(typeCaption, text3)}>
-                    {draft.status || "DRAFT"}
-                  </span>
-                </div>
-                <div className={cx(panelBody, "p-3")}>
-                  <pre
-                    className={cx(
-                      typeBodySm,
-                      text2,
-                      "whitespace-pre-wrap font-sans",
-                    )}
-                  >
-                    {draft.body}
-                  </pre>
-                  <p className={cx(typeCaption, text3, "mt-2")}>
-                    Confirm Send back to copy this for email — not auto-sent.
-                  </p>
-                </div>
-              </section>
-            ) : null}
-          </>
+            </div>
+          </div>
         )}
       </div>
     </motion.div>
@@ -958,6 +1653,7 @@ export default function VisaRefShell() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerShown, setDrawerShown] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(false);
   const {
     ref: contentRef,
     edges: contentEdges,
@@ -1117,6 +1813,8 @@ export default function VisaRefShell() {
             setSelectedId(null);
           }}
           counts={counts}
+          collapsed={navCollapsed}
+          onToggleCollapsed={() => setNavCollapsed((v) => !v)}
         />
       </aside>
 
@@ -1715,7 +2413,7 @@ export default function VisaRefShell() {
               paper,
               overlayShadow,
               overlayEnter,
-              "absolute inset-y-0 left-0 z-40 flex w-[312px] max-w-[calc(100%-3rem)] overflow-hidden",
+              "absolute inset-y-0 left-0 z-40 flex w-[13rem] max-w-[calc(100%-3rem)] overflow-hidden",
               drawerShown ? "opacity-100" : "opacity-0",
             )}
           >

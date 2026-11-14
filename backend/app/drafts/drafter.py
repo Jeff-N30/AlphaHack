@@ -39,7 +39,7 @@ def draft_send_back(
     return ApplicantMessageDraft(
         id=str(uuid.uuid4()),
         application_id=audit.application_id,
-        channel="copy",
+        channel="email",
         language=_lang(language),
         body=body,
         rule_ids=[i["rule_id"] for i in issues],
@@ -47,11 +47,67 @@ def draft_send_back(
     )
 
 
+def draft_ready(
+    audit: AuditReport,
+    *,
+    applicant_first_name: str = "Applicant",
+    language: str = "en",
+    agency_name: str = "VisaRef Agency",
+    officer_name: str | None = None,
+    settings: Settings | None = None,
+) -> ApplicantMessageDraft:
+    """DRAFT when file is ready for Gloria to take to TLS (never says approved/refused)."""
+    settings = settings or get_settings()
+    officer = officer_name or settings.officer_name
+    first = applicant_first_name or "Applicant"
+    if language.startswith("fr"):
+        body = (
+            f"Bonjour {first},\n\n"
+            "Votre dossier visa est complet côté documents. "
+            "Nous le présenterons à TLScontact pour la suite du rendez-vous.\n\n"
+            "Merci,\n"
+            f"{officer} – {agency_name}"
+        )
+    elif language.startswith("ar"):
+        body = (
+            f"مرحبا {first}،\n\n"
+            "ملف التأشيرة مكتمل من جهة المستندات. "
+            "سنتابعه لدى TLScontact لموعدكم.\n\n"
+            "شكراً،\n"
+            f"{officer} – {agency_name}"
+        )
+    else:
+        body = (
+            f"Hello {first},\n\n"
+            "Your visa document pack looks complete on our side. "
+            "We will take the file to TLScontact for your appointment next steps.\n\n"
+            "Thank you,\n"
+            f"{officer} – {agency_name}"
+        )
+    body = _FORBIDDEN.sub("[omitted]", body)
+    return ApplicantMessageDraft(
+        id=str(uuid.uuid4()),
+        application_id=audit.application_id,
+        channel="email",
+        language=_lang(language),
+        body=body,
+        rule_ids=[],
+        status=DraftStatus.DRAFT,
+    )
+
+
 def attach_drafts(audit: AuditReport, *, applicant_first_name: str = "Applicant") -> AuditReport:
-    """Mutate audit.drafts in place when SEND_BACK has request FAILs."""
-    draft = draft_send_back(audit, applicant_first_name=applicant_first_name)
-    if draft:
-        audit.drafts = [draft]
+    """Attach send-back draft on FAIL requests, or ready-for-TLS draft when clean."""
+    from app.models import Outcome
+
+    if audit.outcome == Outcome.SEND_BACK:
+        draft = draft_send_back(audit, applicant_first_name=applicant_first_name)
+        if draft:
+            draft.channel = "email"  # type: ignore[assignment]
+            audit.drafts = [draft]
+        return audit
+    if audit.outcome == Outcome.READY_FOR_APPROVAL:
+        audit.drafts = [draft_ready(audit, applicant_first_name=applicant_first_name)]
     return audit
 
 

@@ -48,7 +48,9 @@ def extract_flight(
     settings: Settings | None = None,
 ) -> FlightBookingExtraction:
     settings = settings or get_settings()
-    return extract_structured(
+    from app.extract.flight_fields import recover_booking_reference
+
+    out = extract_structured(
         schema=FlightBookingExtraction,
         system=prompts.SYSTEM,
         user=prompts.FLIGHT_USER.replace("<<<TEXT>>>", text[:20_000]),
@@ -57,6 +59,11 @@ def extract_flight(
         offline_fixture=FIXTURE_FLIGHT,
         settings=settings,
     )
+    if not (out.booking_reference or "").strip():
+        recovered = recover_booking_reference(text)
+        if recovered:
+            out.booking_reference = recovered
+    return out
 
 
 def extract_insurance(
@@ -138,7 +145,9 @@ def extract_employment(
     settings: Settings | None = None,
 ) -> EmploymentLetterExtraction:
     settings = settings or get_settings()
-    return extract_structured(
+    from app.extract.employment_fields import recover_position_from_text
+
+    out = extract_structured(
         schema=EmploymentLetterExtraction,
         system=prompts.SYSTEM,
         user=prompts.EMPLOYMENT_USER.replace("<<<TEXT>>>", text[:20_000]),
@@ -147,6 +156,12 @@ def extract_employment(
         offline_fixture=FIXTURE_EMPLOYMENT,
         settings=settings,
     )
+    # LLM first; if position still null, recover from printed text (many layouts).
+    if not (out.position or "").strip():
+        recovered = recover_position_from_text(text)
+        if recovered:
+            out.position = recovered
+    return out
 
 
 def extract_payslip(
@@ -155,7 +170,22 @@ def extract_payslip(
     source: bytes | str | Path | None = None,
     settings: Settings | None = None,
 ) -> PayslipExtraction:
+    """Prefer labeled-text parse (stable); LLM only if labels are incomplete."""
     settings = settings or get_settings()
+    from app.extract.payslip_fields import parse_payslip_from_text
+    from app.models import Money
+
+    parsed = parse_payslip_from_text(text)
+    if parsed:
+        return PayslipExtraction(
+            employee_name=parsed["employee_name"],
+            employer_name=parsed["employer_name"],
+            period_month=parsed["period_month"],
+            net_pay=Money(**parsed["net_pay"]),
+            language="en",
+            anomaly_flags=[],
+            field_meta={},
+        )
     return extract_structured(
         schema=PayslipExtraction,
         system=prompts.SYSTEM,

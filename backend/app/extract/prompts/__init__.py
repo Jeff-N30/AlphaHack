@@ -11,7 +11,9 @@ Rules:
   "05/12/2026" → 2026-12-05. Prefer month names when present ("10 December 2026").
   Never swap day and month.
 - Names: keep order as printed; uppercase OK. Strip titles MR/MRS/MS later in code.
-- If a field is missing in the text, use null only when the schema allows; else omit or empty list.
+- If a labelled field is present in the text (e.g. "Date of birth 12/03/1994", "Passport LR0482913"),
+  you MUST extract it — do not return null for that field.
+- If a field is truly absent from the text, use null only when the schema allows; else omit or empty list.
 - anomaly_flags: oddities only (blurry, missing stamp, currency weird) — never a verdict.
 """
 
@@ -36,24 +38,19 @@ Numeric dates are DAY/MONTH/YEAR (European). Example: printed 10/12/2026 → dep
 <<<TEXT>>>
 """
 
-_INS_SHOT = """
-EXAMPLE INPUT:
-TRAVEL INSURANCE COVER NOTE
-Beneficiary KARIM NASSAR DOB 12/03/1994 Passport LR0482913
-Period of Coverage: 18 Dec 2026 to 28 Dec 2026
-Destination: France, Schengen States Medical Coverage: 30,000 EUR
-Covers emergency medical, hospitalization, repatriation
+INSURANCE_USER = """Schengen travel medical insurance certificate.
 
-EXAMPLE JSON:
-{"doc_type":"travel_insurance","language":"en","anomaly_flags":[],"insured_name":"KARIM NASSAR","date_of_birth":"1994-03-12","passport_number":"LR0482913","insurer":"Specimen Assurance","policy_number":"TI-2026-2913","coverage":{"amount":30000,"currency":"EUR"},"territory":"SCHENGEN","territory_raw":"France, Schengen States","start_date":"2026-12-18","end_date":"2026-12-28","covers":["emergency_medical","hospitalisation","repatriation"],"field_meta":{}}
-"""
+Read the DOCUMENT TEXT below and fill every field you can.
+Must copy when present:
+- "Date of birth 12/03/1994" → date_of_birth "1994-03-12" (day-first European dates)
+- "Passport LR0482913" → passport_number "LR0482913"
+- Insured / beneficiary name → insured_name
+- Valid from / Valid until → start_date / end_date as YYYY-MM-DD
+Also: insurer, policy_number, coverage amount+currency, territory
+(SCHENGEN|EUROPE|WORLDWIDE|OTHER|UNCLEAR), territory_raw, covers.
+Ignore SPECIMEN / FAKE / watermark noise. Do not invent values.
+Never leave date_of_birth or passport_number null if those labels appear in the text.
 
-INSURANCE_USER = """Document type: Schengen / travel medical insurance cover note.
-Extract insured_name, date_of_birth, passport_number, insurer, policy_number,
-coverage {{amount, currency}}, territory (SCHENGEN|EUROPE|WORLDWIDE|OTHER|UNCLEAR),
-territory_raw, start_date, end_date, covers.
-If amount is 100,000 USD and destination Schengen → territory SCHENGEN, currency USD.
-""" + _INS_SHOT + """
 --- DOCUMENT TEXT ---
 <<<TEXT>>>
 """
@@ -137,8 +134,12 @@ EXAMPLE JSON:
 """
 
 EMPLOYMENT_USER = """Document type: employer / employment letter (not the Schengen application form).
-Extract employee_name, employer_name, optional position, hire_date, monthly_salary {{amount, currency}},
+Extract employee_name, employer_name, position, hire_date, monthly_salary {{amount, currency}},
 leave_start, leave_end, letter_date, signed_and_stamped.
+
+position = the person's job title / role / function on the letter (EN/FR).
+Look for labeled lines (Position, Job title, Fonction, Poste, Designation)
+or prose that names the role. Never invent a title; use null only if none is printed.
 Numeric dates are DAY/MONTH/YEAR. Currency ISO 4217 as printed.
 """ + _EMP_SHOT + """
 --- DOCUMENT TEXT ---

@@ -55,21 +55,54 @@ def test_confirm_token_single_use(tmp_path: Path) -> None:
     assert getattr(exc.value, "conflict", False) is True
 
 
-def test_approve_requires_token(tmp_path: Path) -> None:
+def _smtp_settings(tmp_path: Path) -> Settings:
+    return Settings(
+        data_dir=tmp_path,
+        checklist_dir=Path(__file__).resolve().parents[2] / "checklists",
+        email_imap_user="officer@gmail.com",
+        email_imap_password="app-pass",
+    )
+
+
+def _fake_smtp(monkeypatch) -> None:
+    def _send(**kwargs):
+        to = kwargs.get("to_address") or ""
+        return {
+            "channel": "email",
+            "delivered": True,
+            "to": "karim@example.com" if "karim" in to else to.lower(),
+            "application_id": kwargs["application_id"],
+            "officer": kwargs["officer"],
+            "body_chars": len(kwargs["body"]),
+            "note": "Sent by Gloria confirm (SMTP).",
+        }
+
+    monkeypatch.setattr("app.outbound.deliver.deliver_email", _send)
+
+
+def test_approve_requires_token(tmp_path: Path, monkeypatch) -> None:
     clear_tokens_for_tests()
-    settings = Settings(data_dir=tmp_path, checklist_dir=Path(__file__).resolve().parents[2] / "checklists")
+    _fake_smtp(monkeypatch)
+    settings = _smtp_settings(tmp_path)
     meta = create_application(
         checklist_id="fr-schengen-short-stay",
         submission_date=date(2026, 11, 16),
         settings=settings,
     )
     meta["status"] = "awaiting_gloria_approval"
+    meta["applicant_email"] = "karim@example.com"
     save_meta(meta, settings)
+    root = app_dir(meta["id"], settings)
+    (root / "email_pipeline_report.json").write_text(
+        '{"audit":{"drafts":[{"id":"ready1","body":"Your pack looks complete.","status":"DRAFT","rule_ids":[]}]}}',
+        encoding="utf-8",
+    )
     tok = issue_confirm_token(application_id=meta["id"], action="approve")
-    updated = approve_application(
+    out = approve_application(
         meta["id"], confirm_token=tok.token, officer="Gloria", settings=settings
     )
-    assert updated["status"] == "approved_by_gloria"
+    assert out["meta"]["status"] == "approved_by_gloria"
+    assert out["delivery"]["channel"] == "email"
     log = read_audit_log(settings)
     assert any(r["action"] == "approve" and r["application_id"] == meta["id"] for r in log)
     with pytest.raises(LockError):
@@ -78,14 +111,16 @@ def test_approve_requires_token(tmp_path: Path) -> None:
         )
 
 
-def test_send_draft_writes_audit(tmp_path: Path) -> None:
+def test_send_draft_writes_audit(tmp_path: Path, monkeypatch) -> None:
     clear_tokens_for_tests()
-    settings = Settings(data_dir=tmp_path, checklist_dir=Path(__file__).resolve().parents[2] / "checklists")
+    _fake_smtp(monkeypatch)
+    settings = _smtp_settings(tmp_path)
     meta = create_application(
         checklist_id="fr-schengen-short-stay",
         submission_date=date(2026, 11, 16),
         settings=settings,
     )
+    save_meta(meta, settings)
     root = app_dir(meta["id"], settings)
     (root / "email_pipeline_report.json").write_text(
         '{"audit":{"drafts":[{"id":"d1","body":"Please send bank statement.","status":"DRAFT","rule_ids":["BANK.SUFFICIENT_FUNDS"]}]}}',
@@ -93,8 +128,62 @@ def test_send_draft_writes_audit(tmp_path: Path) -> None:
     )
     tok = issue_confirm_token(application_id=meta["id"], action="send_back")
     out = send_draft(
-        meta["id"], confirm_token=tok.token, officer="Gloria", draft_id="d1", settings=settings
+        meta["id"],
+        confirm_token=tok.token,
+        officer="Gloria",
+        draft_id="d1",
+        to_email="karim@example.com",
+        settings=settings,
     )
     assert out["meta"]["status"] == "sent_back_by_gloria"
     assert out["draft"]["status"] == "SENT"
-    assert out["delivery"]["channel"] == "copy"
+    assert out["delivery"]["channel"] == "email"
+    assert out["delivery"]["to"] == "karim@example.com"
+
+
+def test_approve_sends_ready_draft(tmp_path: Path, monkeypatch) -> None:
+    clear_tokens_for_tests()
+    _fake_smtp(monkeypatch)
+    settings = _smtp_settings(tmp_path)
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    meta["status"] = "awaiting_gloria_approval"
+    meta["email_sender"] = "Applicant <karim@example.com>"
+    save_meta(meta, settings)
+    root = app_dir(meta["id"], settings)
+    (root / "email_pipeline_report.json").write_text(
+        '{"audit":{"drafts":[{"id":"ready1","body":"Your visa document pack looks complete.","status":"DRAFT","rule_ids":[]}]}}',
+        encoding="utf-8",
+    )
+    tok = issue_confirm_token(application_id=meta["id"], action="approve")
+    out = approve_application(
+        meta["id"], confirm_token=tok.token, officer="Gloria", draft_id="ready1", settings=settings
+    )
+    assert out["meta"]["status"] == "approved_by_gloria"
+    assert out["draft"]["status"] == "SENT"
+    assert out["delivery"]["channel"] == "email"
+    assert out["delivery"]["to"] == "karim@example.com"
+
+
+def test_send_draft_fails_without_email(tmp_path: Path) -> None:
+    clear_tokens_for_tests()
+    settings = _smtp_settings(tmp_path)
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    save_meta(meta, settings)
+    root = app_dir(meta["id"], settings)
+    (root / "email_pipeline_report.json").write_text(
+        '{"audit":{"drafts":[{"id":"d1","body":"Please send bank statement.","status":"DRAFT"}]}}',
+        encoding="utf-8",
+    )
+    tok = issue_confirm_token(application_id=meta["id"], action="send_back")
+    with pytest.raises(LockError, match="No applicant email"):
+        send_draft(
+            meta["id"], confirm_token=tok.token, officer="Gloria", draft_id="d1", settings=settings
+        )

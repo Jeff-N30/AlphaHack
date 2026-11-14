@@ -65,6 +65,9 @@ def process_email_message(
     meta = load_meta(aid, settings)
     meta["email_uid"] = message.uid
     meta["email_source"] = message.source
+    if message.sender:
+        meta["email_sender"] = message.sender
+        meta["applicant_email"] = message.sender
     if message.person_name and message.person_name != "unknown":
         meta["triage_person_name"] = message.person_name
     save_meta(meta, settings)

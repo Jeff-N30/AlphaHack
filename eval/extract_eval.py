@@ -122,9 +122,17 @@ def score_bank(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
 
 
 def score_employment(pred, gold: dict) -> list[tuple[str, bool, str, str]]:
+    g_pos = (gold.get("position") or "").strip()
+    p_pos = (pred.position or "").strip()
+    if g_pos:
+        pos_ok = _norm_name(g_pos) in _norm_name(p_pos) or _norm_name(p_pos) in _norm_name(g_pos)
+    else:
+        # Gold omitted — still require a non-null title when extract returns one for audit
+        pos_ok = bool(p_pos)
     return [
         ("employee_name", _norm_name(gold.get("employee_name", "")) in _norm_name(pred.employee_name or ""), str(gold.get("employee_name")), str(pred.employee_name)),
         ("employer_name", bool(pred.employer_name), str(gold.get("employer_name")), str(pred.employer_name)),
+        ("position", pos_ok, g_pos or "(any)", p_pos or "NULL"),
         ("leave_start", _as_date(gold.get("leave_start")) == _as_date(pred.leave_start), str(gold.get("leave_start")), _as_date(pred.leave_start) or ""),
         ("leave_end", _as_date(gold.get("leave_end")) == _as_date(pred.leave_end), str(gold.get("leave_end")), _as_date(pred.leave_end) or ""),
     ]

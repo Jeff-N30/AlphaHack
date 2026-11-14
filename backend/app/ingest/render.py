@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,12 @@ from PIL import Image, ImageOps
 _ALLOWED = frozenset({".pdf", ".png", ".jpg", ".jpeg"})
 _MAX_PX = 2000
 _DPI = 200
+# Diagonal specimen watermarks often leak as 1-char lines and break LLM extract
+_WATERMARK_LINE = re.compile(
+    r"(?i)^\s*(?:specimen|fake|alphahack|not\s+a\s+real\s+document|"
+    r"test\s+data|for\s+demo)\b.*$"
+)
+_SPACED_GLYPHS = re.compile(r"^[A-Za-z0-9](?:\s+[A-Za-z0-9]){1,8}$")
 
 
 def _load_tesseract():
@@ -72,6 +79,25 @@ class DocumentPreview:
 
 def allowed_suffix(path: Path) -> bool:
     return path.suffix.lower() in _ALLOWED
+
+
+def clean_extract_text(text: str) -> str:
+    """Drop watermark / single-glyph junk so Llama sees labelled fields cleanly."""
+    if not text:
+        return ""
+    kept: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if _WATERMARK_LINE.match(line):
+            continue
+        # Diagonal stamp noise → lone or spaced letters/digits ("K", "P N", "6 2 0")
+        if len(line) == 1 or _SPACED_GLYPHS.match(line):
+            continue
+        kept.append(line)
+    out = "\n".join(kept)
+    return re.sub(r"[ \t]{2,}", " ", out).strip()
 
 
 def _normalize_image(img: Image.Image) -> Image.Image:
@@ -180,6 +206,7 @@ def read_preview(path: Path | str, *, max_pages: int = 4, ocr_lang: str = "eng")
         img = Image.open(path)
         img = _normalize_image(img)
         text, _conf = _ocr_image(img, lang=ocr_lang)
+        text = clean_extract_text(text)
         method = "image_text" if text else "empty"
         out.pages.append(
             PagePreview(
@@ -203,8 +230,14 @@ def read_preview(path: Path | str, *, max_pages: int = 4, ocr_lang: str = "eng")
     rich = sum(1 for t in text_pages[:n] if len(t) >= 40)
     if rich >= max(1, n // 2) or (n == 1 and len(text_pages[0]) >= 40):
         for i, t in enumerate(text_pages[:n], start=1):
+            cleaned = clean_extract_text(t)
             out.pages.append(
-                PagePreview(page=i, text=t, method="pdf_text" if t else "empty", char_count=len(t))
+                PagePreview(
+                    page=i,
+                    text=cleaned,
+                    method="pdf_text" if cleaned else "empty",
+                    char_count=len(cleaned),
+                )
             )
         return out
 
@@ -218,9 +251,10 @@ def read_preview(path: Path | str, *, max_pages: int = 4, ocr_lang: str = "eng")
     for i, img in enumerate(images, start=1):
         layer = text_pages[i - 1] if i - 1 < len(text_pages) else ""
         if len(layer) >= 40:
-            text, method = layer, "pdf_text"
+            text, method = clean_extract_text(layer), "pdf_text"
         else:
-            text, _c = _ocr_image(img, lang=ocr_lang)
+            raw, _c = _ocr_image(img, lang=ocr_lang)
+            text = clean_extract_text(raw)
             method = "ocr" if text else "empty"
         out.pages.append(
             PagePreview(

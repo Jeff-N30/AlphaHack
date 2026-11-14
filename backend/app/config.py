@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_timeout_s: int = 120
     max_pages_per_doc: int = 4
     demo_offline: bool = False
-    prompt_version: str = "5"
+    prompt_version: str = "7"
 
     # Human cost baseline
     officer_hourly_usd: float = 5.00
@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     email_read_unread_only: bool = True
     email_poll_interval_s: int = 30
     email_connection_timeout_s: int = 20
+    # Outbound (Gloria confirm only) — defaults to Gmail SMTP with same app password
+    email_smtp_host: str = "smtp.gmail.com"
+    email_smtp_port: int = 587
+    demo_applicant_email: str = ""
 
     @field_validator("data_dir", "checklist_dir", mode="before")
     @classmethod

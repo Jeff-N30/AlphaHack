@@ -187,6 +187,9 @@ class GloriaActionBody(BaseModel):
     officer: str = Field(default="Gloria", min_length=1, max_length=80)
     confirm_token: str = Field(..., min_length=8)
     draft_id: str | None = None
+    to_email: str | None = Field(
+        default=None, description="Correspondent email — required to SMTP send"
+    )
 
 
 class OfficerAuthBody(BaseModel):
@@ -241,16 +244,20 @@ def gloria_action(application_id: str, body: GloriaActionBody) -> dict:
     action = body.action.lower().strip()
     try:
         if action == "approve":
-            meta = approve_application(
-                application_id, confirm_token=body.confirm_token, officer=officer
+            return approve_application(
+                application_id,
+                confirm_token=body.confirm_token,
+                officer=officer,
+                draft_id=body.draft_id,
+                to_email=body.to_email,
             )
-            return {"meta": meta}
         if action == "send_back":
             return send_draft(
                 application_id,
                 confirm_token=body.confirm_token,
                 officer=officer,
                 draft_id=body.draft_id,
+                to_email=body.to_email,
             )
         if action == "review":
             meta = mark_review(

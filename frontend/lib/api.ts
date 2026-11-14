@@ -27,7 +27,17 @@ export type DraftMessage = {
   body?: string;
   language?: string;
   status?: string;
+  channel?: string;
   rule_ids?: string[];
+};
+
+export type DeliveryResult = {
+  channel?: string;
+  delivered?: boolean;
+  to?: string;
+  intended_to?: string;
+  note?: string;
+  email_error?: string;
 };
 
 export type ApplicationDetail = {
@@ -45,6 +55,9 @@ export type ApplicationDetail = {
     created_at?: string;
     last_officer?: string;
     facts_source?: string;
+    applicant_email?: string | null;
+    email_sender?: string | null;
+    last_delivery?: DeliveryResult | null;
   };
   files: string[];
   report: {
@@ -118,20 +131,23 @@ export async function postGloriaAction(
   action: "approve" | "send_back" | "review",
   officer = "Gloria",
   draftId?: string,
+  toEmail?: string,
 ) {
   const { token } = await postConfirmToken(id, action, officer);
-  return request<{ meta: ApplicationDetail["meta"]; draft?: DraftMessage }>(
-    `/applications/${id}/gloria-action`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        action,
-        officer,
-        confirm_token: token,
-        draft_id: draftId,
-      }),
-    },
-  );
+  return request<{
+    meta: ApplicationDetail["meta"];
+    draft?: DraftMessage;
+    delivery?: DeliveryResult;
+  }>(`/applications/${id}/gloria-action`, {
+    method: "POST",
+    body: JSON.stringify({
+      action,
+      officer,
+      confirm_token: token,
+      draft_id: draftId,
+      to_email: toEmail || undefined,
+    }),
+  });
 }
 
 export function postEmailInboxRead() {

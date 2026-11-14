@@ -68,6 +68,18 @@ def _record_cost(step: str, model: str, inp: int, out: int, settings: Settings) 
     return line
 
 
+def _strip_schema_patterns(node: object) -> object:
+    if isinstance(node, dict):
+        return {
+            k: _strip_schema_patterns(v)
+            for k, v in node.items()
+            if k != "pattern"
+        }
+    if isinstance(node, list):
+        return [_strip_schema_patterns(x) for x in node]
+    return node
+
+
 def _parse_json_model(raw: str, schema: type[T]) -> T:
     text = (raw or "").strip()
     if text.startswith("```"):
@@ -82,11 +94,14 @@ def _call_ollama(system: str, user: str, schema: type[T], settings: Settings) ->
     """Local Llama via Ollama — JSON object matching the Pydantic schema."""
     import httpx
 
-    schema_json = json.dumps(schema.model_json_schema(), indent=2)
+    # Strip JSON-Schema "pattern" — some Ollama/llama3.2 builds crash the runner on it.
+    raw_schema = schema.model_json_schema()
+    ollama_schema = _strip_schema_patterns(raw_schema)
+    schema_json = json.dumps(ollama_schema, indent=2)
     payload = {
         "model": settings.extract_model,
         "stream": False,
-        "format": schema.model_json_schema(),
+        "format": ollama_schema,
         "options": {"temperature": 0.0},
         "messages": [
             {

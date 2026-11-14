@@ -52,3 +52,14 @@ def test_attach_drafts_skips_when_no_request_fails() -> None:
     )
     attach_drafts(audit)
     assert audit.drafts == []
+
+
+def test_attach_drafts_ready_on_clean_file() -> None:
+    audit = _audit()
+    audit.outcome = Outcome.READY_FOR_APPROVAL
+    attach_drafts(audit, applicant_first_name="Karim")
+    assert len(audit.drafts) == 1
+    assert audit.drafts[0].status.value == "DRAFT"
+    assert "Karim" in audit.drafts[0].body
+    assert "complete" in audit.drafts[0].body.lower()
+    assert "approved" not in audit.drafts[0].body.lower()
