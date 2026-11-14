@@ -15,6 +15,7 @@
       --fail: #f07178;
       --human: #e6b450;
       --accent: #5b9fd4;
+      --llama: #c4a5f5;
     }
     * { box-sizing: border-box; }
     body {
@@ -34,16 +35,16 @@
       cursor: pointer;
     }
     button:disabled { opacity: 0.5; cursor: wait; }
-    .grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; }
+    @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
     .card {
       background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
       padding: 16px 18px; min-height: 200px;
     }
+    .card.llama { border-color: rgba(196,165,245,.45); box-shadow: 0 0 0 1px rgba(196,165,245,.12); }
     .card h2 { margin: 0 0 12px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-    .outcome {
-      font-size: 1.8rem; font-weight: 700; margin: 8px 0 4px;
-    }
+    .card.llama h2 { color: var(--llama); }
+    .outcome { font-size: 1.8rem; font-weight: 700; margin: 8px 0 4px; }
     .badge {
       display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
     }
@@ -55,13 +56,20 @@
     td, th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
     th { color: var(--muted); font-weight: 500; }
     .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.8rem; }
-    #log { white-space: pre-wrap; color: var(--muted); font-size: 0.8rem; max-height: 180px; overflow: auto; }
+    #log { white-space: pre-wrap; color: var(--muted); font-size: 0.8rem; max-height: 140px; overflow: auto; }
     .pill { color: var(--muted); font-size: 0.85rem; }
+    .llama-block { margin-bottom: 14px; }
+    .llama-block .label { color: var(--llama); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .llama-block pre {
+      margin: 0; white-space: pre-wrap; word-break: break-word;
+      background: #121820; border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px; max-height: 160px; overflow: auto; font-size: 0.75rem; color: #d7e0ea;
+    }
   </style>
 </head>
 <body>
   <h1>VisaRef</h1>
-  <p class="sub">Lebanon → France Schengen pre-check · AI extracts · <strong>code decides</strong> · Gloria confirms</p>
+  <p class="sub">Lebanon → France Schengen · <strong style="color:var(--llama)">Llama extracts</strong> · <strong>code decides</strong> · Gloria confirms</p>
 
   <div class="row">
     <label class="pill">Case
@@ -81,17 +89,22 @@
       <h2>Outcome</h2>
       <div id="outcome" class="outcome">—</div>
       <div id="meta" class="pill"></div>
-      <h2 style="margin-top:18px">Passport MRZ</h2>
+      <h2 style="margin-top:18px">Passport MRZ (code)</h2>
       <div id="mrz" class="mono">—</div>
     </div>
     <div class="card">
-      <h2>Checklist results</h2>
+      <h2>Checklist results (code)</h2>
       <div style="max-height: 360px; overflow: auto">
         <table>
           <thead><tr><th>Rule</th><th>Status</th></tr></thead>
           <tbody id="rules"></tbody>
         </table>
       </div>
+    </div>
+    <div class="card llama">
+      <h2>Llama output · ollama / llama3.2</h2>
+      <div id="llamaMeta" class="pill" style="margin-bottom:10px">—</div>
+      <div id="llamaOut">Click <strong>Run agent</strong> — Llama fills flight / insurance / form fields here.</div>
     </div>
   </div>
 
@@ -107,6 +120,48 @@
       logEl.textContent += msg + "\n";
       logEl.scrollTop = logEl.scrollHeight;
     }
+    function showLlama(llama) {
+      const root = document.getElementById("llamaOut");
+      const meta = document.getElementById("llamaMeta");
+      if (!llama || !llama.docs || !Object.keys(llama.docs).length) {
+        meta.textContent = "no extract";
+        root.textContent = "(no PDFs / extract failed)";
+        return;
+      }
+      meta.textContent =
+        `${llama.provider}/${llama.model}` +
+        (llama.demo_offline ? " · DEMO_OFFLINE fixture/cache" : " · live") +
+        (llama.fallback ? " · fallback used" : "");
+      root.innerHTML = "";
+      const order = ["flight_booking", "travel_insurance", "application_form"];
+      for (const key of order) {
+        const doc = llama.docs[key];
+        if (!doc) continue;
+        let summary = "";
+        if (key === "flight_booking") {
+          const segs = (doc.segments || []).map(s =>
+            `${s.from_airport}→${s.to_airport} ${s.departure_date}`
+          ).join(" · ");
+          summary = `passengers: ${(doc.passenger_names || []).join(", ")}\nref: ${doc.booking_reference || "—"}\n${segs}`;
+        } else if (key === "travel_insurance") {
+          summary =
+            `${doc.insured_name}\n` +
+            `coverage: ${doc.coverage && doc.coverage.amount} ${doc.coverage && doc.coverage.currency}\n` +
+            `territory: ${doc.territory} · ${doc.start_date} → ${doc.end_date}`;
+        } else if (key === "application_form") {
+          summary =
+            `${doc.surname} / ${doc.given_names}\n` +
+            `passport ${doc.passport_number} · DOB ${doc.date_of_birth}\n` +
+            `travel ${doc.intended_arrival} → ${doc.intended_departure}`;
+        }
+        const block = document.createElement("div");
+        block.className = "llama-block";
+        block.innerHTML =
+          `<div class="label">${key} ← llama</div>` +
+          `<pre class="mono">${summary}\n\n${JSON.stringify(doc, null, 2)}</pre>`;
+        root.appendChild(block);
+      }
+    }
     document.getElementById("run").onclick = async () => {
       const caseId = document.getElementById("case").value;
       const btn = document.getElementById("run");
@@ -116,16 +171,20 @@
       rulesEl.innerHTML = "";
       document.getElementById("outcome").textContent = "—";
       document.getElementById("mrz").textContent = "—";
+      document.getElementById("llamaOut").textContent = "Llama extracting…";
+      document.getElementById("llamaMeta").textContent = "…";
       try {
         log("1. Load fake TLS file: " + caseId);
-        log("2. Ingest pdf/png → OCR / classify / passport MRZ");
-        log("3. Run fr-schengen-short-stay checklist (code, not LLM)");
+        log("2. Llama (ollama/llama3.2) → flight / insurance / form JSON");
+        log("3. Ingest + passport MRZ (code)");
+        log("4. Checklist rules decide PASS/FAIL (code, not Llama)");
         const t0 = performance.now();
         const res = await fetch("/demo/seed-case/" + caseId, { method: "POST" });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         const ms = Math.round(performance.now() - t0);
         const audit = data.audit;
+        showLlama(data.llama_extract);
         document.getElementById("outcome").textContent = audit.outcome;
         document.getElementById("outcome").style.color =
           audit.outcome === "READY_FOR_APPROVAL" ? "var(--pass)" :
@@ -154,6 +213,7 @@
           tr.innerHTML = `<td class="mono">${r.rule_id}</td><td><span class="badge ${r.status}">${r.status}</span></td>`;
           rulesEl.appendChild(tr);
         }
+        log("Llama docs: " + Object.keys((data.llama_extract && data.llama_extract.docs) || {}).join(", "));
         if (!interesting.length) {
           log("All code checks PASS → READY_FOR_APPROVAL (Gloria ticks photo/pages).");
         } else {

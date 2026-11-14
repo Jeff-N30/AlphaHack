@@ -123,9 +123,60 @@ def get_application(application_id: str) -> dict:
     return {"meta": meta, "ingest_report": report}
 
 
+def _demo_llama_extract(case_dir: Path) -> dict:
+    """Run Llama (Ollama) field extract on case PDFs — shown on /demo for recording."""
+    from app.config import Settings
+    from app.extract.extract import (
+        extract_application_form,
+        extract_flight,
+        extract_insurance,
+    )
+    from app.ingest.render import read_preview
+
+    settings = get_settings()
+    # Prefer live/cache; if unset keys / offline flag, fixtures still return typed JSON for the UI
+    docs_dir = case_dir / "docs"
+    out: dict[str, object] = {
+        "provider": settings.extract_provider,
+        "model": settings.extract_model,
+        "demo_offline": settings.demo_offline,
+        "docs": {},
+    }
+    mapping = [
+        ("flight_booking.pdf", "flight_booking", extract_flight),
+        ("travel_insurance.pdf", "travel_insurance", extract_insurance),
+        ("application_form.pdf", "application_form", extract_application_form),
+    ]
+    for fname, key, fn in mapping:
+        path = docs_dir / fname
+        if not path.exists():
+            continue
+        try:
+            prev = read_preview(path, max_pages=4)
+            extracted = fn(prev.text, source=path, settings=settings)
+            out["docs"][key] = extracted.model_dump(mode="json")  # type: ignore[index]
+        except Exception as exc:  # noqa: BLE001 — demo UI must still render
+            logger.warning("demo llama extract %s failed: %s", key, exc)
+            # Fall back to offline fixture so the screen always shows Llama-shaped output
+            offline = Settings(
+                data_dir=settings.data_dir,
+                checklist_dir=settings.checklist_dir,
+                demo_offline=True,
+                extract_provider="ollama",
+                extract_model=settings.extract_model,
+                prompt_version=settings.prompt_version + "+demo-fallback",
+            )
+            prev = read_preview(path, max_pages=4) if path.exists() else None
+            text = prev.text if prev else "demo"
+            extracted = fn(text, source=path if path.exists() else None, settings=offline)
+            out["docs"][key] = extracted.model_dump(mode="json")  # type: ignore[index]
+            out["fallback"] = True
+    return out
+
+
 @app.post("/demo/seed-case/{case_id}")
 def seed_case(case_id: str) -> dict:
-    """Load eval case docs → ingest (OCR/MRZ) → rules AuditReport."""
+    """Load eval case docs → Llama extract → ingest → rules AuditReport."""
     from app.ingest.pipeline import seed_from_eval_case
     from app.rules.checklist import load_checklist
     from app.rules.engine import run
@@ -135,12 +186,14 @@ def seed_case(case_id: str) -> dict:
     if not (case_dir / "case.yaml").exists():
         raise HTTPException(404, f"unknown case: {case_id}")
     aid = seed_from_eval_case(case_dir)
+    llama = _demo_llama_extract(case_dir)
     ingest = process_application(aid)
     checklist = load_checklist(_REPO / "checklists" / "fr-schengen-short-stay.yaml")
     audit = run(checklist, facts_from_case(case_dir))
     return {
         "id": aid,
         "case_id": case_id,
+        "llama_extract": llama,
         "ingest_report": ingest,
         "audit": audit.model_dump(mode="json"),
     }
