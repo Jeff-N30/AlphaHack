@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
+import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -9,9 +12,62 @@ from typing import Any
 from app.config import Settings, get_settings
 from app.extract.classify import classify_document
 from app.extract.mrz import best_mrz
-from app.ingest.render import DocumentPreview, allowed_suffix, read_preview
-from app.models import DocType
+from app.ingest.render import DocumentPreview, allowed_suffix, read_preview, render_page_png
+from app.models import DocType, MRZ
 from app.storage.files import app_dir, load_meta, save_meta
+
+logger = logging.getLogger(__name__)
+
+
+def _ocr_mrz_lines(text: str) -> list[str] | None:
+    """Pull TD3-looking lines from OCR (spaces stripped) for MRZ fallback."""
+    if not text:
+        return None
+    compact = re.sub(r"\s+", "", text.upper().replace("«", "<").replace("‹", "<"))
+    # Prefer explicit TD3 pair: P<… then passport-number line
+    m = re.search(
+        r"(P<[A-Z0-9<]{42,})(LR[A-Z0-9<]{40,}|[A-Z0-9]{9}[A-Z0-9<]{30,})",
+        compact,
+    )
+    if m:
+        return [m.group(1)[:44].ljust(44, "<"), m.group(2)[:44].ljust(44, "<")]
+    lines: list[str] = []
+    for raw in text.splitlines():
+        c = re.sub(r"\s+", "", raw.upper().replace("«", "<").replace("‹", "<"))
+        if c.startswith("P<") and len(c) >= 40:
+            lines.append(c[:44].ljust(44, "<"))
+        elif re.match(r"^[A-Z0-9<]{40,}$", c) and len(c) >= 40:
+            lines.append(c[:44].ljust(44, "<"))
+    if len(lines) >= 2:
+        return lines[:2]
+    if compact.startswith("P<") and len(compact) >= 88:
+        return [compact[:44].ljust(44, "<"), compact[44:88].ljust(44, "<")]
+    return None
+
+
+def _mrz_for_file(path: Path, *, preview_text: str = "") -> MRZ | None:
+    """Run MRZ on image path, or rasterize PDF page 1 first."""
+    ocr_lines = _ocr_mrz_lines(preview_text)
+    suffix = path.suffix.lower()
+    try:
+        if suffix in {".png", ".jpg", ".jpeg"}:
+            return best_mrz(path, llm_lines=ocr_lines)
+        if suffix == ".pdf":
+            png = render_page_png(path, page=1)
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+            try:
+                tmp_path.write_bytes(png)
+                return best_mrz(tmp_path, llm_lines=ocr_lines)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("MRZ failed on %s: %s", path.name, exc)
+        if ocr_lines:
+            return best_mrz(None, llm_lines=ocr_lines)
+    if ocr_lines:
+        return best_mrz(None, llm_lines=ocr_lines)
+    return None
 
 
 def _preview_to_dict(prev: DocumentPreview) -> dict[str, Any]:
@@ -68,15 +124,23 @@ def process_application(
             "classification": classified.model_dump(mode="json"),
         }
 
-        if classified.doc_type == DocType.passport or path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
-            # Try MRZ on images; also when classifier says passport
-            if path.suffix.lower() in {".png", ".jpg", ".jpeg"}:
-                mrz = best_mrz(path, llm_lines=None)
-                if mrz is not None:
-                    entry["mrz"] = mrz.model_dump(mode="json")
-                elif classified.doc_type == DocType.passport:
-                    entry["mrz"] = None
-                    entry["mrz_note"] = "checksums_failed_or_unreadable"
+        # MRZ only for passport-like files. Running it on insurance/forms picks up
+        # random 44-char lines and poisons DOC.PRESENT / PP.MRZ_CHECKSUM.
+        looks_like_passport = classified.doc_type == DocType.passport or (
+            classified.doc_type == DocType.unknown
+            and (
+                "passport" in path.name.lower()
+                or path.suffix.lower() in {".png", ".jpg", ".jpeg"}
+            )
+        )
+        if looks_like_passport:
+            # Passport PDFs must be rasterized — previously only PNG/JPG ran MRZ.
+            mrz = _mrz_for_file(path, preview_text=prev.text or "")
+            if mrz is not None:
+                entry["mrz"] = mrz.model_dump(mode="json")
+            elif classified.doc_type == DocType.passport:
+                entry["mrz"] = None
+                entry["mrz_note"] = "checksums_failed_or_unreadable"
 
         files_out.append(entry)
 

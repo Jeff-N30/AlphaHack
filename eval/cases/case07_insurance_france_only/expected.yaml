@@ -34,7 +34,6 @@ rules:
   SUS.DOC_ANOMALY: PASS
   SUS.LOW_CONFIDENCE: PASS
 manual_rules_ignored:
-- PP.BLANK_PAGES
 - PHOTO.ISO
 draft_message:
   required: true

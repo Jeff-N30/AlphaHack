@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { postOfficerAuth } from "@/lib/api";
 
 const SESSION_KEY = "visaref.session";
-const SESSION_DURATION_MS = 5 * 60 * 1000;
+const SESSION_DURATION_MS = 4 * 60 * 60 * 1000;
 const EASE_OUT = [0.2, 0, 0, 1] as const;
 
 type Session = {
@@ -213,7 +213,7 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
             </form>
 
             <p className="mt-3 text-center text-[11px]/[15px] text-neutral-900/55 dark:text-neutral-100/55">
-              Session expires after 5 minutes. API still requires lock tokens for
+              Session expires after 4 hours. API still requires lock tokens for
               Approve / Send.
             </p>
           </motion.section>

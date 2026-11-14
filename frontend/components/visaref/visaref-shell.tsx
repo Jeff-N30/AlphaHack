@@ -230,10 +230,6 @@ const RULE_LABEL: Record<string, { title: string; hint: string }> = {
     title: "Missing documents",
     hint: "Required pack is incomplete",
   },
-  "PP.BLANK_PAGES": {
-    title: "Blank visa pages",
-    hint: "Confirm at least 2 empty pages in the passport",
-  },
   "PP.MRZ_CHECKSUM": {
     title: "Passport MRZ",
     hint: "Machine zone checksum — re-scan if unclear",
@@ -252,7 +248,7 @@ const RULE_LABEL: Record<string, { title: string; hint: string }> = {
   },
   "PHOTO.ISO": {
     title: "Photo standard",
-    hint: "Confirm Schengen / ISO photo rules by eye",
+    hint: "Open the ID photo (not the passport) and confirm Schengen / ISO rules",
   },
   "BANK.SUFFICIENT_FUNDS": {
     title: "Bank balance too low",
@@ -267,12 +263,12 @@ const RULE_LABEL: Record<string, { title: string; hint: string }> = {
     hint: "Confirm the statement is stamped by the bank",
   },
   "ID.NAME_MATCH": {
-    title: "Name mismatch",
-    hint: "Passport name does not match other documents",
+    title: "Names don’t match",
+    hint: "Compare the passport name to the other document — confirm it’s the same person",
   },
   "ID.DOB_MATCH": {
     title: "Birth date",
-    hint: "Open the document and confirm the birth date matches the passport",
+    hint: "Birth dates differ across documents — confirm which is correct",
   },
   "ID.FORM_MATCHES_PASSPORT": {
     title: "Form vs passport",
@@ -295,8 +291,8 @@ const RULE_LABEL: Record<string, { title: string; hint: string }> = {
     hint: "Need the last 3 recent payslips",
   },
   "SUS.LOW_CONFIDENCE": {
-    title: "Please double-check",
-    hint: "The system is unsure about a field — open the document and confirm",
+    title: "Unclear field",
+    hint: "Open the document and confirm the printed value looks right",
   },
   "SUS.DOC_ANOMALY": {
     title: "Odd-looking document",
@@ -358,7 +354,6 @@ const DOC_FILE_PATTERNS: Record<string, RegExp> = {
 
 const RULE_DOC_HINT: Record<string, string> = {
   "DOC.PRESENT": "application_form",
-  "PP.BLANK_PAGES": "passport",
   "PP.MRZ_CHECKSUM": "passport",
   "PP.MRZ_MATCHES_VIZ": "passport",
   "PP.NOT_EXPIRED": "passport",
@@ -383,6 +378,13 @@ const RULE_DOC_HINT: Record<string, string> = {
 function findFileForDoc(files: string[], docType: string | undefined): string | null {
   if (!docType || !files.length) return null;
   const key = docType.toLowerCase().replace(/\s+/g, "_");
+  // ISO / visa photos — never open the passport biodata page
+  if (key === "photo") {
+    const idPhoto =
+      files.find((f) => /^photo(_\d+)?\./i.test(f)) ??
+      files.find((f) => /national[_-]?id|id[_-]?card|id_photo/i.test(f));
+    if (idPhoto) return idPhoto;
+  }
   // Prefer exact stem (passport.png over passport_phone.jpg)
   const exact = files.find((f) => {
     const stem = f.replace(/\.[^.]+$/, "").toLowerCase();
@@ -392,7 +394,7 @@ function findFileForDoc(files: string[], docType: string | undefined): string | 
   const re = DOC_FILE_PATTERNS[key];
   if (re) {
     const ranked = files
-      .filter((f) => re.test(f))
+      .filter((f) => re.test(f) && !(key === "photo" && /passport/i.test(f)))
       .sort((a, b) => a.length - b.length);
     if (ranked[0]) return ranked[0];
   }
@@ -419,18 +421,57 @@ function fileForMissingLabel(files: string[], label: string): string | null {
   return null;
 }
 
-function fileForIssue(files: string[], row: AuditRow): string | null {
+/** Docs to open for a row — compare rules return passport + conflicting file. */
+function filesForIssue(files: string[], row: AuditRow): string[] {
+  const ruleId = row.rule_id ?? row.id ?? "";
+  if (ruleId === "PHOTO.ISO") {
+    const photo = findFileForDoc(files, "photo");
+    return photo ? [photo] : [];
+  }
+
+  if (ruleId === "ID.NAME_MATCH" || ruleId === "ID.DOB_MATCH") {
+    const evidence = row.evidence ?? [];
+    const passport = findFileForDoc(files, "passport");
+    let weakestDoc: string | null = null;
+    let weakestScore = 101;
+    for (const e of evidence) {
+      if (!e.doc || e.doc === "passport") continue;
+      const m = String(e.value ?? "").match(/\((\d+(?:\.\d+)?)\)\s*$/);
+      const score = m ? Number(m[1]) : ruleId === "ID.NAME_MATCH" ? 100 : 0;
+      // NAME: lowest score; DOB: first non-passport mismatch (no score)
+      if (ruleId === "ID.NAME_MATCH") {
+        if (score < weakestScore) {
+          weakestScore = score;
+          weakestDoc = e.doc;
+        }
+      } else if (!weakestDoc) {
+        weakestDoc = e.doc;
+      }
+    }
+    const other = weakestDoc ? findFileForDoc(files, weakestDoc) : null;
+    const out: string[] = [];
+    if (passport) out.push(passport);
+    if (other && other !== passport) out.push(other);
+    if (out.length) return out;
+  }
+
   const fromEvidence = (row.evidence ?? [])
     .map((e) => e.doc)
     .find((d): d is string => Boolean(d) && d !== "application");
   if (fromEvidence) {
     const hit = findFileForDoc(files, fromEvidence);
-    if (hit) return hit;
+    if (hit) return [hit];
   }
-  const ruleId = row.rule_id ?? row.id ?? "";
   const hint = RULE_DOC_HINT[ruleId];
-  if (hint) return findFileForDoc(files, hint);
-  return null;
+  if (hint) {
+    const hit = findFileForDoc(files, hint);
+    if (hit) return [hit];
+  }
+  return [];
+}
+
+function fileForIssue(files: string[], row: AuditRow): string | null {
+  return filesForIssue(files, row)[0] ?? null;
 }
 
 function ruleCopy(ruleId: string | undefined) {
@@ -451,22 +492,76 @@ function plainField(name: string) {
   return FIELD_PLAIN[name] ?? name.replaceAll("_", " ");
 }
 
+function nameFromEvidenceValue(raw: string | undefined): string {
+  if (!raw) return "";
+  // Strip trailing match scores like "JEFF GERGES NADER (74.1)"
+  return raw.replace(/\s*\(\d+(?:\.\d+)?\)\s*$/, "").trim();
+}
+
 /** Gloria-facing body text — no rule ids, field paths, or confidence scores. */
 function issuePlain(row: AuditRow): string {
   const ruleId = row.rule_id ?? row.id ?? "";
   const copy = ruleCopy(ruleId);
   const msg = (row.message ?? "").trim();
 
-  if (ruleId === "SUS.LOW_CONFIDENCE") {
-    const fields = [...msg.matchAll(/([a-z_]+)\.([a-z_]+)=([0-9.]+)/gi)].map(
-      (m) => plainField(m[2]),
+  if (ruleId === "ID.NAME_MATCH") {
+    const evidence = row.evidence ?? [];
+    const passportName = nameFromEvidenceValue(
+      evidence.find((e) => e.doc === "passport")?.value,
     );
-    const uniq = [...new Set(fields)];
-    if (uniq.length === 1) {
-      return `We're unsure about the ${uniq[0]} — open the document and confirm it looks right`;
+    // Weakest match = lowest trailing score among non-passport rows
+    let weakest: { doc: string; name: string; score: number } | null = null;
+    for (const e of evidence) {
+      if (!e.doc || e.doc === "passport") continue;
+      const m = String(e.value ?? "").match(/^(.*?)\s*\((\d+(?:\.\d+)?)\)\s*$/);
+      const name = nameFromEvidenceValue(e.value);
+      const score = m ? Number(m[2]) : 100;
+      if (!name) continue;
+      if (score < 100 && (!weakest || score < weakest.score)) {
+        weakest = { doc: e.doc, name, score };
+      }
     }
-    if (uniq.length > 1) {
-      return `We're unsure about: ${uniq.join(", ")} — open the document and confirm`;
+    if (passportName && weakest) {
+      return (
+        `Passport: ${passportName} · ${plainDoc(weakest.doc)}: ${weakest.name} ` +
+        `— confirm it’s the same person`
+      );
+    }
+    if (/MRZ|Gloria review|variant/i.test(msg)) {
+      return copy.hint;
+    }
+  }
+
+  if (ruleId === "SUS.LOW_CONFIDENCE") {
+    // Prefer backend Gloria message when it already names doc + value
+    if (/^Unsure about /i.test(msg) && !/confidence|field_meta/i.test(msg)) {
+      return msg;
+    }
+    const evidence = row.evidence ?? [];
+    const first = evidence.find((e) => e.doc && e.doc !== "application");
+    if (first?.doc && first.field) {
+      const shown = String(first.value ?? "").trim();
+      const looksLikeScoreOnly = /^0?\.\d+$/.test(shown) || /^confidence=/i.test(shown);
+      if (shown && !looksLikeScoreOnly) {
+        return (
+          `Unsure about ${plainDoc(first.doc)} ${plainField(first.field)} ` +
+          `(showing ${shown}) — open the ${plainDoc(first.doc)} and confirm`
+        );
+      }
+      return (
+        `Unsure about ${plainDoc(first.doc)} ${plainField(first.field)} ` +
+        `— open the ${plainDoc(first.doc)} and confirm the printed value`
+      );
+    }
+    const legacy = [...msg.matchAll(/([a-z_]+)\.([a-z_]+)=([0-9.]+)/gi)];
+    if (legacy.length === 1) {
+      return (
+        `Unsure about ${plainDoc(legacy[0][1])} ${plainField(legacy[0][2])} ` +
+        `— open the ${plainDoc(legacy[0][1])} and confirm`
+      );
+    }
+    if (legacy.length > 1) {
+      return `Unsure about ${legacy.length} fields — open each document and confirm`;
     }
     return copy.hint;
   }
@@ -890,16 +985,23 @@ function NavigationFrame({
 function DocPagePreview({
   applicationId,
   filename,
+  compact = false,
 }: {
   applicationId: string;
   filename: string;
+  compact?: boolean;
 }) {
   const [status, setStatus] = useState<"loading" | "ok" | "err">("loading");
   const src = filePagePreviewUrl(applicationId, filename, 1);
   const isPdf = filename.toLowerCase().endsWith(".pdf");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border-t border-neutral-900/8 dark:border-neutral-100/8">
+    <div
+      className={cx(
+        "flex min-h-0 flex-1 flex-col bg-[var(--rb-bg,white)] dark:bg-neutral-950",
+        !compact && "border-t border-neutral-900/8 dark:border-neutral-100/8",
+      )}
+    >
       <div className="flex shrink-0 items-center gap-2 px-3 py-1.5">
         <span className={cx(typeCaption, text3, "min-w-0 flex-1 truncate")}>
           {filename}
@@ -978,12 +1080,13 @@ function ApprovalPanel({
   const draft = audit?.drafts?.[0];
   const files = detailQuery.data?.files ?? [];
   const fileKey = files.join("\0");
-  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [previewTick, setPreviewTick] = useState(0);
   const [docsFlash, setDocsFlash] = useState(false);
   const [confirmedIds, setConfirmedIds] = useState<Record<string, boolean>>({});
   const [toEmail, setToEmail] = useState("");
   const docsRef = useRef<HTMLElement | null>(null);
+  const previewFile = previewFiles[0] ?? null;
   const hasErrors =
     outcome === "SEND_BACK" ||
     issues.missingDocs.length > 0 ||
@@ -1049,31 +1152,34 @@ function ApprovalPanel({
     setToEmail(m ? m[0] : "");
   }, [applicationId, meta?.applicant_email, meta?.email_sender]);
 
-  const openDoc = useCallback(
-    (filename: string | null) => {
-      if (!filename || !files.includes(filename)) return;
-      setPreviewFile(filename);
-      // Remount preview even if the same file was already selected
+  const openDocs = useCallback(
+    (names: string[] | string | null) => {
+      const list = (Array.isArray(names) ? names : names ? [names] : [])
+        .filter((f) => files.includes(f))
+        .slice(0, 2);
+      if (!list.length) return;
+      setPreviewFiles(list);
       setPreviewTick((n) => n + 1);
       setDocsFlash(true);
       window.setTimeout(() => setDocsFlash(false), 700);
-      requestAnimationFrame(() => {
-        docsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      // Do NOT scrollIntoView — on stacked layouts that yanks the Decision
+      // panel (and every confirm row) off-screen.
     },
     [files],
   );
+  const openDoc = openDocs;
 
   // Demo: always show a document — prefer passport image, else first file
   useEffect(() => {
     if (!files.length) {
-      setPreviewFile(null);
+      setPreviewFiles([]);
       return;
     }
-    setPreviewFile((cur) => {
-      if (cur && files.includes(cur)) return cur;
+    setPreviewFiles((cur) => {
+      const kept = cur.filter((f) => files.includes(f));
+      if (kept.length) return kept;
       const passport = files.find((f) => /passport/i.test(f));
-      return passport ?? files[0];
+      return [passport ?? files[0]];
     });
     // fileKey tracks membership; files is derived from the same query data
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1276,16 +1382,16 @@ function ApprovalPanel({
                           {issues.mustFix.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? i);
                             const copy = ruleCopy(r.rule_id ?? r.id);
-                            const linked = fileForIssue(files, r);
+                            const linked = filesForIssue(files, r);
                             return (
                               <li key={id}>
                                 <button
                                   type="button"
-                                  disabled={!linked}
-                                  onClick={() => openDoc(linked)}
+                                  disabled={!linked.length}
+                                  onClick={() => openDocs(linked)}
                                   className={cx(
                                     "flex w-full items-start gap-2.5 px-3 py-2.5 text-left",
-                                    linked
+                                    linked.length
                                       ? cx(
                                           hoverFill,
                                           pressedFill,
@@ -1314,7 +1420,7 @@ function ApprovalPanel({
                                       )}
                                     >
                                     {issuePlain(r)}
-                                      {linked ? " · tap to open" : ""}
+                                      {linked.length ? " · tap to open" : ""}
                                     </span>
                                 </span>
                                 <span
@@ -1351,8 +1457,15 @@ function ApprovalPanel({
                           {issues.youCheck.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? `you-${i}`);
                             const copy = ruleCopy(r.rule_id ?? r.id);
-                            const linked = fileForIssue(files, r);
+                            const linked = filesForIssue(files, r);
                             const checked = Boolean(confirmedIds[id]);
+                            const toggleConfirm = () => {
+                              setConfirmedIds((prev) => ({
+                                ...prev,
+                                [id]: !prev[id],
+                              }));
+                              if (linked.length) openDocs(linked);
+                            };
                             return (
                               <li key={id}>
                                 <div
@@ -1361,7 +1474,17 @@ function ApprovalPanel({
                                     checked && "bg-neutral-900/[0.03] dark:bg-neutral-100/[0.04]",
                                   )}
                                 >
-                                  <label
+                                  {/* Real button — never sr-only checkbox (focus scrolls the list away) */}
+                                  <button
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={checked}
+                                    aria-label={
+                                      checked
+                                        ? `Unconfirm ${copy.title}`
+                                        : `Confirm ${copy.title}`
+                                    }
+                                    onClick={toggleConfirm}
                                     className={cx(
                                       "mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border transition-colors",
                                       checked
@@ -1370,29 +1493,17 @@ function ApprovalPanel({
                                       focusRingInset,
                                     )}
                                   >
-                                    <input
-                                      type="checkbox"
-                                      className="sr-only"
-                                      checked={checked}
-                                      onChange={() => {
-                                        setConfirmedIds((prev) => ({
-                                          ...prev,
-                                          [id]: !prev[id],
-                                        }));
-                                        if (linked) openDoc(linked);
-                                      }}
-                                    />
                                     {checked ? (
                                       <HugeiconsIcon icon={Tick02Icon} size={10} />
                                     ) : null}
-                                  </label>
+                                  </button>
                                   <button
                                     type="button"
-                                    disabled={!linked}
-                                    onClick={() => openDoc(linked)}
+                                    disabled={!linked.length}
+                                    onClick={() => openDocs(linked)}
                                     className={cx(
                                       "min-w-0 flex-1 text-left",
-                                      linked
+                                      linked.length
                                         ? cx(transition, "cursor-pointer")
                                         : "cursor-default",
                                     )}
@@ -1408,7 +1519,6 @@ function ApprovalPanel({
                                       )}
                                     >
                                       {issuePlain(r)}
-                                      {linked ? " · open doc, then tick" : " · tick when checked"}
                                     </span>
                                   </button>
                                   <span
@@ -1626,7 +1736,7 @@ function ApprovalPanel({
                       <li key={f} className="shrink-0">
                         <button
                           type="button"
-                          onClick={() => setPreviewFile(f)}
+                          onClick={() => openDocs(f)}
                           className={cx(
                             inkSlot,
                             hoverFill,
@@ -1634,7 +1744,7 @@ function ApprovalPanel({
                             transition,
                             focusRing,
                             "max-w-[11rem] cursor-pointer truncate",
-                            previewFile === f &&
+                            previewFiles.includes(f) &&
                               "border-neutral-900/40 dark:border-neutral-100/40",
                           )}
                         >
@@ -1643,7 +1753,36 @@ function ApprovalPanel({
                       </li>
                     ))}
                   </ul>
-                  {previewFile ? (
+                  {previewFiles.length > 1 ? (
+                    <div
+                      key={`compare:${previewFiles.join("|")}:${previewTick}`}
+                      className="flex min-h-0 flex-1 flex-col border-t border-neutral-900/8 dark:border-neutral-100/8"
+                    >
+                      <p
+                        className={cx(
+                          typeCaption,
+                          text3,
+                          "shrink-0 px-3 py-1.5",
+                        )}
+                      >
+                        Compare
+                      </p>
+                      <div className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto bg-neutral-900/8 dark:bg-neutral-100/8">
+                        {previewFiles.map((f) => (
+                          <div
+                            key={`${f}:${previewTick}`}
+                            className="flex min-h-[12rem] flex-1 flex-col"
+                          >
+                            <DocPagePreview
+                              applicationId={applicationId}
+                              filename={f}
+                              compact
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : previewFile ? (
                     <DocPagePreview
                       key={`${previewFile}:${previewTick}`}
                       applicationId={applicationId}

@@ -73,7 +73,9 @@ def extract_insurance(
     settings: Settings | None = None,
 ) -> TravelInsuranceExtraction:
     settings = settings or get_settings()
-    return extract_structured(
+    from app.extract.insurance_fields import recover_dob_day_first
+
+    out = extract_structured(
         schema=TravelInsuranceExtraction,
         system=prompts.SYSTEM,
         user=prompts.INSURANCE_USER.replace("<<<TEXT>>>", text[:20_000]),
@@ -82,6 +84,11 @@ def extract_insurance(
         offline_fixture=FIXTURE_INSURANCE,
         settings=settings,
     )
+    # Cover notes print DD/MM/YYYY; Llama often flips or copies prompt examples.
+    recovered = recover_dob_day_first(text)
+    if recovered is not None:
+        out.date_of_birth = recovered
+    return out
 
 
 def extract_application_form(

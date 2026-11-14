@@ -113,10 +113,23 @@ def _applicant_summary(
     insurance = docs.get("travel_insurance") or {}
     bank = docs.get("bank_statement") or {}
     emp = docs.get("employment_letter") or {}
+    # Passport identity only from a checksum-valid MRZ (never invent / never use garbage OCR).
+    passport = docs.get("passport") or {}
+    if not passport or passport.get("mrz", {}).get("checksums_valid") is False:
+        for entry in ((report.get("ingest_report") or {}).get("files") or []):
+            if not isinstance(entry, dict):
+                continue
+            mrz = entry.get("mrz") or {}
+            if mrz.get("checksums_valid") and (mrz.get("surname") or mrz.get("given_names")):
+                passport = mrz
+                break
+        else:
+            if not (passport.get("surname") or passport.get("given_names")):
+                passport = {}
 
     name: str | None = None
-    surname = form.get("surname")
-    given = form.get("given_names")
+    surname = form.get("surname") or passport.get("surname")
+    given = form.get("given_names") or passport.get("given_names")
     if surname or given:
         name = " ".join(p for p in (given, surname) if p).strip() or None
     if not name and insurance.get("insured_name"):
@@ -131,6 +144,22 @@ def _applicant_summary(
             name = str(passengers[0]).strip() or None
     if not name:
         name = triage_name
+    if not name and meta:
+        # Email intake with thin docs: show correspondent, never invent a legal name.
+        for key in ("applicant_email", "email_sender", "sender"):
+            raw = meta.get(key)
+            if not raw:
+                continue
+            raw_s = str(raw).strip()
+            # "Jason Boulos <jason@…>" → Jason Boulos
+            if "<" in raw_s:
+                display = raw_s.split("<", 1)[0].strip().strip('"')
+                if display:
+                    name = display
+                    break
+            elif "@" not in raw_s and raw_s:
+                name = raw_s
+                break
 
     trip: str | None = None
     segs = flight.get("segments") or []

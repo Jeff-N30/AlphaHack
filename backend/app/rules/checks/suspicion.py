@@ -34,10 +34,35 @@ def llm_anomaly_flags(facts: Facts, params: dict[str, Any], ctx: RuleContext):
     return ok("SUS.DOC_ANOMALY", "No anomaly flags", evidence=[ev("application", "anomaly_flags", "none")])
 
 
+_DOC_PLAIN = {
+    "passport": "passport",
+    "travel_insurance": "insurance",
+    "bank_statement": "bank statement",
+    "employment_letter": "employer letter",
+    "application_form": "application form",
+    "flight_booking": "flight booking",
+    "hotel_booking": "hotel booking",
+    "payslip": "payslip",
+    "family_register": "family register",
+}
+
+_FIELD_PLAIN = {
+    "issue_date": "issue date",
+    "date_of_birth": "birth date",
+    "expiry_date": "expiry date",
+    "passport_number": "passport number",
+    "surname": "surname",
+    "given_names": "given names",
+    "account_holder": "account holder",
+    "insured_name": "insured name",
+    "employee_name": "employee name",
+}
+
+
 @register("low_extraction_confidence")
 def low_extraction_confidence(facts: Facts, params: dict[str, Any], ctx: RuleContext):
     min_c = float(params.get("min_confidence", 0.8))
-    lows: list[str] = []
+    lows: list[tuple[str, str, Any, float]] = []
     evidence = []
     for dtype, docs in facts.documents.items():
         for doc in docs:
@@ -45,15 +70,34 @@ def low_extraction_confidence(facts: Facts, params: dict[str, Any], ctx: RuleCon
             for key, conf in meta.items():
                 c = getattr(conf, "confidence", None)
                 if c is not None and float(c) < min_c:
-                    lows.append(f"{dtype.value}.{key}={c}")
-                    evidence.append(ev(dtype.value, key, c))
-    if lows:
-        return needs_human(
+                    val = getattr(doc, key, None)
+                    lows.append((dtype.value, key, val, float(c)))
+                    # Keep raw value in evidence for Gloria; score in message only
+                    evidence.append(ev(dtype.value, key, val if val is not None else f"confidence={c}"))
+    if not lows:
+        return ok(
             "SUS.LOW_CONFIDENCE",
-            f"Low confidence fields: {', '.join(lows[:8])}",
-            evidence=evidence,
+            "Extraction confidence OK",
+            evidence=[ev("application", "confidence", "ok")],
         )
-    return ok("SUS.LOW_CONFIDENCE", "Extraction confidence OK", evidence=[ev("application", "confidence", "ok")])
+    # Gloria-facing: name the doc, field, and what we think we read
+    dtype, key, val, _c = lows[0]
+    doc_l = _DOC_PLAIN.get(dtype, dtype.replace("_", " "))
+    field_l = _FIELD_PLAIN.get(key, key.replace("_", " "))
+    if val is not None and str(val).strip():
+        msg = (
+            f"Unsure about {doc_l} {field_l} (showing {val}) "
+            f"— open the {doc_l} and confirm the printed value"
+        )
+    else:
+        msg = (
+            f"Unsure about {doc_l} {field_l} "
+            f"— open the {doc_l} and confirm it looks right"
+        )
+    if len(lows) > 1:
+        msg += f" (+{len(lows) - 1} more)"
+    return needs_human("SUS.LOW_CONFIDENCE", msg, evidence=evidence)
+
 
 
 @register("manual")

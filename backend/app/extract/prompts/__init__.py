@@ -42,7 +42,8 @@ INSURANCE_USER = """Schengen travel medical insurance certificate.
 
 Read the DOCUMENT TEXT below and fill every field you can.
 Must copy when present:
-- "Date of birth 12/03/1994" → date_of_birth "1994-03-12" (day-first European dates)
+- Birth dates are ALWAYS day-first (Lebanon/EU): "03/06/2003" → "2003-06-03" (3 June, NOT March).
+  "12/03/1994" → "1994-03-12". Never swap day/month.
 - "Passport LR0482913" → passport_number "LR0482913"
 - Insured / beneficiary name → insured_name
 - Valid from / Valid until → start_date / end_date as YYYY-MM-DD

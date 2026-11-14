@@ -1,0 +1,528 @@
+[
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "flight_booking",
+    "file": "flight_booking.pdf",
+    "text_chars": 258,
+    "text_preview": "Booking ref: FAKE27 \u00b7 Not a real ticket | Passenger: SALEH/RANA MS | Passport: LR0619027 | Flight From To Date Country | XX0201 BEY CDG 12/12/2026 FR | XX0202 CDG BEY 23/12/2026 LB | / U | / A | Reservation may be unpaid hold \u2014 accepted as travel proof for visa file (demo).",
+    "fields": [
+      {
+        "field": "passenger_names",
+        "group": "OK",
+        "pred": [
+          "SALEH",
+          "RANA MS"
+        ],
+        "gold": [
+          "SALEH/RANA MS"
+        ],
+        "text_cue": true,
+        "text_snippet": "Booking ref: FAKE27 \u00b7 Not a real ticket Passenger: SALEH/RANA MS Passport: LR0619027 Flight From To Date Coun"
+      },
+      {
+        "field": "booking_reference",
+        "group": "OK",
+        "pred": "FAKE27",
+        "gold": "FAKE27",
+        "text_cue": true,
+        "text_snippet": "Booking ref: FAKE27 \u00b7 Not a real ticket Passenger: SALEH/RANA MS Pa"
+      }
+    ],
+    "pred": {
+      "doc_type": "flight_booking",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "passenger_names": [
+        "SALEH",
+        "RANA MS"
+      ],
+      "booking_reference": "FAKE27",
+      "passport_number": "LR0619027",
+      "segments": [
+        {
+          "from_airport": "BEY",
+          "to_airport": "CDG",
+          "to_country": null,
+          "departure_date": "2026-12-12",
+          "flight_number": "XX0201"
+        },
+        {
+          "from_airport": "CDG",
+          "to_airport": "BEY",
+          "to_country": null,
+          "departure_date": "2026-12-23",
+          "flight_number": "XX0202"
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "travel_insurance",
+    "file": "travel_insurance.pdf",
+    "text_chars": 425,
+    "text_preview": "SCHENGEN TRAVEL MEDICAL INSURANCE CERTIFICATE | Insurer Specimen Assurance SAL (FAKE) | Policy number TI-2026-9027 | Insured RANA SALEH | Date of birth 14/05/1996 | Passport LR0619027 | Coverage 30,000.00 EUR | Territory SCHENGEN (All Schengen States) | Valid from 12/12/2026 2 | Valid until 23/12/2026 | Covers emergency_medical, hospital H isation, repatriatTion | Minimum medical + repatriation EUR 30,000 \u2014 Sch | eng e/n",
+    "fields": [
+      {
+        "field": "date_of_birth",
+        "group": "OK",
+        "pred": "1996-05-14",
+        "gold": "1996-05-14",
+        "text_cue": true,
+        "text_snippet": "FAKE) Policy number TI-2026-9027 Insured RANA SALEH Date of birth 14/05/1996 Passport LR0619027 Coverage 30,000.00 EUR Territ"
+      },
+      {
+        "field": "passport_number",
+        "group": "OK",
+        "pred": "LR0619027",
+        "gold": "LR0619027",
+        "text_cue": true,
+        "text_snippet": "er TI-2026-9027 Insured RANA SALEH Date of birth 14/05/1996 Passport LR0619027 Coverage 30,000.00 EUR Territory SCHENGEN (All Sc"
+      },
+      {
+        "field": "insured_name",
+        "group": "OK",
+        "pred": "RANA SALEH",
+        "gold": "RANA SALEH",
+        "text_cue": true,
+        "text_snippet": "er Specimen Assurance SAL (FAKE) Policy number TI-2026-9027 Insured RANA SALEH Date of birth 14/05/1996 Passport LR0619027 Cove"
+      },
+      {
+        "field": "coverage",
+        "group": "OK",
+        "pred": {
+          "amount": 30000.0,
+          "currency": "EUR"
+        },
+        "gold": {
+          "amount": 30000,
+          "currency": "EUR"
+        },
+        "text_cue": true,
+        "text_snippet": "ured RANA SALEH Date of birth 14/05/1996 Passport LR0619027 Coverage 30,000.00 EUR Territory SCHENGEN (All Schengen States) Vali"
+      },
+      {
+        "field": "start_date",
+        "group": "OK",
+        "pred": "2026-12-12",
+        "gold": "2026-12-12",
+        "text_cue": true,
+        "text_snippet": "rage 30,000.00 EUR Territory SCHENGEN (All Schengen States) Valid from 12/12/2026 2 Valid until 23/12/2026 Covers emergency_m"
+      },
+      {
+        "field": "end_date",
+        "group": "OK",
+        "pred": "2026-12-23",
+        "gold": "2026-12-23",
+        "text_cue": true,
+        "text_snippet": "h 14/05/1996 Passport LR0619027 Coverage 30,000.00 EUR Territory SCHENGEN (All Schengen States) Valid from 12/12/2026 2 Va"
+      }
+    ],
+    "pred": {
+      "doc_type": "travel_insurance",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "insured_name": "RANA SALEH",
+      "date_of_birth": "1996-05-14",
+      "passport_number": "LR0619027",
+      "insurer": "SAL",
+      "policy_number": "TI-2026-9027",
+      "coverage": {
+        "amount": 30000.0,
+        "currency": "EUR"
+      },
+      "territory": "SCHENGEN",
+      "territory_raw": "SCHENGEN (All Schengen States)",
+      "start_date": "2026-12-12",
+      "end_date": "2026-12-23",
+      "covers": [
+        "emergency_medical",
+        "hospitalisation",
+        "repatriation"
+      ]
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "application_form",
+    "file": "application_form.pdf",
+    "text_chars": 382,
+    "text_preview": "France-Visas \u2014 Short-stay (C) application printout | France-Visas reference FRA1BE2026FAKE9027 | Surname SALEH | Given names RANA | Date of birth 14/05/1996 | Passport number LR0619027 | Passport expiry 09/05/2032 | Intended arrival 12/12/2026 | Intended departure 23/12/2026 6 | / U | / A | Applicant signature: __________________ (signed \u2014 SPECIMEN) | Receipt signed in person at TLScontact Beirut (FAKE)",
+    "fields": [
+      {
+        "field": "surname",
+        "group": "OK",
+        "pred": "SALEH",
+        "gold": "SALEH",
+        "text_cue": true,
+        "text_snippet": "lication printout France-Visas reference FRA1BE2026FAKE9027 Surname SALEH Given names RANA Date of birth 14/05/1996 Passport nu"
+      },
+      {
+        "field": "given_names",
+        "group": "OK",
+        "pred": "RANA",
+        "gold": "RANA",
+        "text_cue": true,
+        "text_snippet": "out France-Visas reference FRA1BE2026FAKE9027 Surname SALEH Given names RANA Date of birth 14/05/1996 Passport number LR06190"
+      },
+      {
+        "field": "passport_number",
+        "group": "OK",
+        "pred": "LR0619027",
+        "gold": "LR0619027",
+        "text_cue": true,
+        "text_snippet": "027 Surname SALEH Given names RANA Date of birth 14/05/1996 Passport number LR0619027 Passport expiry 09/05/2032 Intended arriva"
+      },
+      {
+        "field": "date_of_birth",
+        "group": "OK",
+        "pred": "1996-05-14",
+        "gold": "1996-05-14",
+        "text_cue": true,
+        "text_snippet": "e FRA1BE2026FAKE9027 Surname SALEH Given names RANA Date of birth 14/05/1996 Passport number LR0619027 Passport expiry 09/05/"
+      }
+    ],
+    "pred": {
+      "doc_type": "application_form",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "surname": "SALEH",
+      "given_names": "RANA",
+      "date_of_birth": "1996-05-14",
+      "passport_number": "LR0619027",
+      "expiry_date": "2032-05-09",
+      "france_visas_reference": "FRA1BE2026FAKE9027",
+      "intended_arrival": "2026-12-12",
+      "intended_departure": "2026-12-23",
+      "signed": true
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "hotel_booking",
+    "file": "hotel_booking.pdf",
+    "text_chars": 270,
+    "text_preview": "BOOKING CONFIRMATION | Hotel Hotel Specimen Montmartre (FAKE) | City / Country Paris / FR | Guest(s) RANA SALEH | Check-in 12/12/2026 | Check-out 20/12/2026 | Confirmation HB-000027 | Prepaid / free cancel True 2 0 | H\u00e9bergement confirm\u00e9 \u00b7 Confirmed lodging (translation/demo) A | / U | / A",
+    "fields": [
+      {
+        "field": "guest_names",
+        "group": "OK",
+        "pred": [
+          "RANA SALEH"
+        ],
+        "gold": [
+          "RANA SALEH"
+        ],
+        "text_cue": true,
+        "text_snippet": "Hotel Specimen Montmartre (FAKE) City / Country Paris / FR Guest(s) RANA SALEH Check-in 12/12/2026 Check-out 20/12/2026 Conf"
+      },
+      {
+        "field": "check_in",
+        "group": "OK",
+        "pred": "2026-12-12",
+        "gold": "2026-12-12",
+        "text_cue": true,
+        "text_snippet": "martre (FAKE) City / Country Paris / FR Guest(s) RANA SALEH Check-in 12/12/2026 Check-out 20/12/2026 Confirmation HB-000027 Prep"
+      },
+      {
+        "field": "check_out",
+        "group": "OK",
+        "pred": "2026-12-20",
+        "gold": "2026-12-20",
+        "text_cue": true,
+        "text_snippet": "Country Paris / FR Guest(s) RANA SALEH Check-in 12/12/2026 Check-out 20/12/2026 Confirmation HB-000027 Prepaid / free cancel Tru"
+      },
+      {
+        "field": "country",
+        "group": "OK",
+        "pred": "FR",
+        "gold": "FR",
+        "text_cue": true,
+        "text_snippet": "ATION Hotel Hotel Specimen Montmartre (FAKE) City / Country Paris / FR Guest(s) RANA SALEH Check-in 12/12/2026 Check-out 20/1"
+      }
+    ],
+    "pred": {
+      "doc_type": "hotel_booking",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "guest_names": [
+        "RANA SALEH"
+      ],
+      "hotel_name": "Hotel Specimen Montmartre",
+      "city": "Paris",
+      "country": "FR",
+      "check_in": "2026-12-12",
+      "check_out": "2026-12-20",
+      "confirmation_number": "HB-000027",
+      "prepaid_or_free_cancellation": true
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "bank_statement",
+    "file": "bank_statement.pdf",
+    "text_chars": 882,
+    "text_preview": "Banque Specimen du Liban (FAKE) | ACCOUNT STATEMENT \u2014 PERSONAL | Account holder RANA SALEH | Currency USD | Account type Fresh USD current account | Period 01/05/2026 fi 31/10/2026 | Issue date 05/11/2026 | Opening balance 3,400.00 | Closing balance 6,200.00 | Date Description Amount | 15/05/2026 CARD PAYMENTS / LIVING COSTS 2 -1,333.33 | 28/05/2026 SALARY CEDAR SPECIMEN SAL C 1,800.00 | 15/06/2026 CARD PAYMENTS / LIVING",
+    "fields": [
+      {
+        "field": "account_holder",
+        "group": "OK",
+        "pred": "RANA SALEH",
+        "gold": "RANA SALEH",
+        "text_cue": true,
+        "text_snippet": "anque Specimen du Liban (FAKE) ACCOUNT STATEMENT \u2014 PERSONAL Account holder RANA SALEH Currency USD Account type Fresh USD current acco"
+      },
+      {
+        "field": "closing_balance",
+        "group": "OK",
+        "pred": 6200.0,
+        "gold": 6200.0,
+        "text_cue": true,
+        "text_snippet": "i 31/10/2026 Issue date 05/11/2026 Opening balance 3,400.00 Closing balance 6,200.00 Date Description Amount 15/05/2026 CARD PA"
+      },
+      {
+        "field": "account_currency",
+        "group": "OK",
+        "pred": "USD",
+        "gold": "USD",
+        "text_cue": true,
+        "text_snippet": "UNT STATEMENT \u2014 PERSONAL Account holder RANA SALEH Currency USD Account type Fresh USD current account Period 01/05/2026 fi"
+      },
+      {
+        "field": "period_end",
+        "group": "OK",
+        "pred": "2026-10-31",
+        "gold": "2026-10-31",
+        "text_cue": true,
+        "text_snippet": "A SALEH Currency USD Account type Fresh USD current account Period 01/05/2026 fi 31/10/2026 Issue date 05/11/2026 Opening bala"
+      }
+    ],
+    "pred": {
+      "doc_type": "bank_statement",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "account_holder": "RANA SALEH",
+      "bank_name": "Banque Specimen du Liban",
+      "account_currency": "USD",
+      "account_type_raw": null,
+      "period_start": "2026-05-01",
+      "period_end": "2026-10-31",
+      "issue_date": "2026-11-05",
+      "opening_balance": 3400.0,
+      "closing_balance": 6200.0,
+      "has_bank_stamp": true,
+      "transactions": [
+        {
+          "date": "2026-05-15",
+          "description": "CARD PAYMENTS / LIVING COSTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-05-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        },
+        {
+          "date": "2026-06-15",
+          "description": "CARD PAYMENTS / LIVING COSTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-06-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        },
+        {
+          "date": "2026-07-15",
+          "description": "CARD PAYMENTS / LIVING COSTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-07-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        },
+        {
+          "date": "2026-08-15",
+          "description": "CARD PAYMENTS / LIVING COSTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-08-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        },
+        {
+          "date": "2026-09-15",
+          "description": "CARD PAYMENTS / LIVINFG COSTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-09-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        },
+        {
+          "date": "2026-10-15",
+          "description": "CARD PAYMEENTS / LIVING COSRTS",
+          "amount": -1333.33,
+          "balance_after": null
+        },
+        {
+          "date": "2026-10-28",
+          "description": "SALARY",
+          "amount": 1800.0,
+          "balance_after": null
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "employment_letter",
+    "file": "employment_letter.pdf",
+    "text_chars": 410,
+    "text_preview": "Cedar Specimen SAL (FAKE) | Beirut, Lebanon \u00b7 SPECIMEN company letterhead | TO WHOM IT MAY CONCERN | This is to certify that RANA SALEH has been employed with our company as Software Engineer since | 01/02/2021. Monthly salary: 1,800.00 USD. Leave of absence is approved from 12/12/2026 to | 23/12/2026 for tourism travel to France / Schengen. | Letter date: 03/11/2026 | / U | / A | HR Manager ________________ (signe",
+    "fields": [
+      {
+        "field": "position",
+        "group": "OK",
+        "pred": "Software Engineer",
+        "gold": "Software Engineer",
+        "text_cue": true,
+        "text_snippet": "certify that RANA SALEH has been employed with our company as Software Engineer since 01/02/2021. Monthly salary: 1,800.00"
+      },
+      {
+        "field": "employee_name",
+        "group": "OK",
+        "pred": "RANA SALEH",
+        "gold": "RANA SALEH",
+        "text_cue": true,
+        "text_snippet": "ECIMEN company letterhead TO WHOM IT MAY CONCERN This is to certify that RANA SALEH has been employed with our company as Software E"
+      },
+      {
+        "field": "hire_date",
+        "group": "OK",
+        "pred": "2021-02-01",
+        "gold": "2021-02-01",
+        "text_cue": true,
+        "text_snippet": "LEH has been employed with our company as Software Engineer since 01/02/2021. Monthly salary: 1,800.00 USD. Leave of absence is"
+      },
+      {
+        "field": "leave_start",
+        "group": "OK",
+        "pred": "2026-12-12",
+        "gold": "2026-12-12",
+        "text_cue": true,
+        "text_snippet": "re Engineer since 01/02/2021. Monthly salary: 1,800.00 USD. Leave of absence is approved from 12/12/2026 to 23/12/2026 for to"
+      },
+      {
+        "field": "leave_end",
+        "group": "OK",
+        "pred": "2026-12-23",
+        "gold": "2026-12-23",
+        "text_cue": true,
+        "text_snippet": "re Engineer since 01/02/2021. Monthly salary: 1,800.00 USD. Leave of absence is approved from 12/12/2026 to 23/12/2026 for to"
+      },
+      {
+        "field": "monthly_salary",
+        "group": "OK",
+        "pred": {
+          "amount": 1800.0,
+          "currency": "USD"
+        },
+        "gold": {
+          "amount": 1800,
+          "currency": "USD"
+        },
+        "text_cue": true,
+        "text_snippet": "our company as Software Engineer since 01/02/2021. Monthly salary: 1,800.00 USD. Leave of absence is approved from 12/12/2026"
+      }
+    ],
+    "pred": {
+      "doc_type": "employment_letter",
+      "language": null,
+      "anomaly_flags": [],
+      "field_meta": {},
+      "employee_name": "RANA SALEH",
+      "employer_name": "Cedar Specimen SAL",
+      "position": "Software Engineer",
+      "hire_date": "2021-02-01",
+      "monthly_salary": {
+        "amount": 1800.0,
+        "currency": "USD"
+      },
+      "leave_start": "2026-12-12",
+      "leave_end": "2026-12-23",
+      "letter_date": "2026-11-03",
+      "signed_and_stamped": true
+    }
+  },
+  {
+    "case_id": "case05_wrong_dates",
+    "doc": "payslip",
+    "file": "payslip_2026-10.pdf",
+    "text_chars": 173,
+    "text_preview": "PAYSLIP / BULLETIN DE PAIE \u2014 SPECIMEN | Employer: Cedar Specimen SAL (FAKE) | Employee: RANA SALEH | Period (YYYY-MM): 2026-10 | Net pay: 1,800.00 USD | Issue date: 28/10/2026 | / U | / A",
+    "fields": [
+      {
+        "field": "period_month",
+        "group": "OK",
+        "pred": "2026-10",
+        "gold": "2026-10",
+        "text_cue": true,
+        "text_snippet": "EN Employer: Cedar Specimen SAL (FAKE) Employee: RANA SALEH Period (YYYY-MM): 2026-10 Net pay: 1,800.00 USD Issue date: 28/10/"
+      },
+      {
+        "field": "net_pay",
+        "group": "OK",
+        "pred": {
+          "amount": 1800.0,
+          "currency": "USD"
+        },
+        "gold": {
+          "amount": 1800,
+          "currency": "USD"
+        },
+        "text_cue": true,
+        "text_snippet": "n SAL (FAKE) Employee: RANA SALEH Period (YYYY-MM): 2026-10 Net pay: 1,800.00 USD Issue date: 28/10/2026 / U / A"
+      },
+      {
+        "field": "employee_name",
+        "group": "OK",
+        "pred": "RANA SALEH",
+        "gold": "RANA SALEH",
+        "text_cue": true,
+        "text_snippet": "ETIN DE PAIE \u2014 SPECIMEN Employer: Cedar Specimen SAL (FAKE) Employee: RANA SALEH Period (YYYY-MM): 2026-10 Net pay: 1,800.00 USD"
+      }
+    ],
+    "pred": {
+      "doc_type": "payslip",
+      "language": "en",
+      "anomaly_flags": [],
+      "field_meta": {},
+      "employee_name": "RANA SALEH",
+      "employer_name": "Cedar Specimen SAL (FAKE)",
+      "period_month": "2026-10",
+      "net_pay": {
+        "amount": 1800.0,
+        "currency": "USD"
+      }
+    }
+  }
+]

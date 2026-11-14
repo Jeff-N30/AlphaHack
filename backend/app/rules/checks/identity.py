@@ -37,21 +37,35 @@ def _names_on_doc(doc: Any, dtype: DocType) -> list[str]:
     return []
 
 
+def _doc_label(dtype: DocType) -> str:
+    return {
+        DocType.flight_booking: "flight booking",
+        DocType.hotel_booking: "hotel booking",
+        DocType.travel_insurance: "insurance",
+        DocType.bank_statement: "bank statement",
+        DocType.employment_letter: "employer letter",
+        DocType.payslip: "payslip",
+        DocType.application_form: "application form",
+    }.get(dtype, dtype.value.replace("_", " "))
+
+
 @register("name_consistency")
 def name_consistency(facts: Facts, params: dict[str, Any], ctx: RuleContext):
     ref = _mrz_reference(facts)
     if not ref:
-        return needs_human("ID.NAME_MATCH", "No passport name reference.")
+        return needs_human("ID.NAME_MATCH", "Couldn’t read a name from the passport.")
     variant = int(params.get("variant_threshold", 85))
     fail_below = int(params.get("fail_below", 70))
     compare = params.get("compare") or []
     worst = Status.PASS
     evidence = [ev("passport", "mrz_name", ref)]
+    # (score, dtype, candidate) for the weakest non-PASS match
+    weakest: tuple[float, DocType, str] | None = None
     for name in compare:
         dtype = DocType(name)
         for doc in facts.get(dtype):
             for cand in _names_on_doc(doc, dtype):
-                st, score, pair = compare_names(
+                st, score, _pair = compare_names(
                     ref, cand, variant_threshold=variant, fail_below=fail_below
                 )
                 evidence.append(ev(dtype.value, "name", f"{cand} ({score:.1f})"))
@@ -59,11 +73,27 @@ def name_consistency(facts: Facts, params: dict[str, Any], ctx: RuleContext):
                     worst = Status.FAIL
                 elif st == Status.NEEDS_HUMAN and worst != Status.FAIL:
                     worst = Status.NEEDS_HUMAN
+                if st != Status.PASS and (
+                    weakest is None or score < weakest[0]
+                ):
+                    weakest = (score, dtype, cand)
     if worst == Status.PASS:
-        return ok("ID.NAME_MATCH", "Names consistent with passport MRZ", evidence=evidence)
+        return ok(
+            "ID.NAME_MATCH",
+            "Names on the pack match the passport",
+            evidence=evidence,
+        )
+    if weakest is not None:
+        _score, dtype, cand = weakest
+        msg = (
+            f"Passport says “{ref}”; {_doc_label(dtype)} says “{cand}” "
+            f"— confirm it’s the same person"
+        )
+    else:
+        msg = "A name on the pack doesn’t match the passport — confirm it’s the same person"
     if worst == Status.NEEDS_HUMAN:
-        return needs_human("ID.NAME_MATCH", "Name variant vs passport MRZ — Gloria review", evidence=evidence)
-    return fail("ID.NAME_MATCH", "Name mismatch vs passport MRZ", evidence=evidence)
+        return needs_human("ID.NAME_MATCH", msg, evidence=evidence)
+    return fail("ID.NAME_MATCH", msg, evidence=evidence)
 
 
 @register("form_matches_passport")

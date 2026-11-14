@@ -79,24 +79,80 @@ def _parse_names_from_line1(line1: str) -> tuple[str, str]:
     return sur.replace("<", " ").strip(), given.replace("<", " ").strip()
 
 
-def _name_candidates(names: str) -> list[str]:
-    """OCR often appends a trailing K (MOHAMADK / NASSARK). Never strip S (GEORGES).
+def _fix_line1_filler_k(line1: str) -> str:
+    """OCR often reads MRZ filler '<' as 'K' (sometimes 'S'/'E') in the name zone.
 
-    Keep multi-token surnames intact (AL HAJJ → not just AL).
+    Examples:
+      NADERK<JEFF   → NADER<<JEFF   (replace glued K with <)
+      NASSARK<<KARIM → NASSAR<<KARIM (drop glued K before existing <<)
+    Never eat a real K that starts a given name (EL<KHOURY).
+    Never strip S — GEORGES<< must stay GEORGES.
+    """
+    chars: list[str | None] = list(_normalize_line(line1))
+    for i in range(5, 44):  # after P< + nationality
+        ch = chars[i]
+        if ch not in "KSE":
+            continue
+        left = chars[i - 1] if i > 0 else "<"
+        right = chars[i + 1] if i + 1 < 44 else "<"
+        # Skip Nones from earlier deletes in left lookup
+        if left is None:
+            left = "<"
+        if right is None:
+            right = "<"
+        if ch == "K" and isinstance(left, str) and left.isalpha() and right == "<":
+            # already have << after the K → delete K; else K is a misread <
+            if i + 2 < 44 and chars[i + 2] == "<":
+                chars[i] = None
+            else:
+                chars[i] = "<"
+        elif left in "<KSE" and right in "<KSE":
+            chars[i] = "<"
+        elif i == 43 and left in "<KSE":
+            chars[i] = "<"
+    out = "".join(c for c in chars if c is not None)
+    return out[:44].ljust(44, "<")
+
+
+def _line1_ocr_variants(line1: str) -> list[str]:
+    """Raw line1 plus filler-K fixes. Prefer the fixed form first."""
+    base = _normalize_line(line1)
+    fixed = _fix_line1_filler_k(base)
+    out: list[str] = []
+    for s in (fixed, base):
+        if s not in out:
+            out.append(s)
+    return out
+
+
+def _name_candidates(names: str) -> list[str]:
+    """OCR often appends a trailing K (MOHAMADK / NADERK) from a misread '<'.
+
+    Prefer the K-stripped form. Never strip S (GEORGES). Keep multi-token
+    surnames intact (AL HAJJ → not just AL).
     """
     toks = [t for t in re.split(r"\s+", (names or "").strip()) if t]
     toks = [t for t in toks if not re.fullmatch(r"[SKE<]+", t)]
     if not toks:
         return []
-    base = " ".join(toks)
-    if len(toks) == 1 and len(base) > 3 and base.endswith("K"):
-        return [base[:-1], base]
-    if len(toks) > 1:
-        last = toks[-1]
-        if len(last) > 3 and last.endswith("K"):
-            stripped = " ".join([*toks[:-1], last[:-1]])
-            return [stripped, base]
-    return [base]
+
+    def strip_trailing_k(token: str) -> str:
+        if len(token) > 3 and token.endswith("K"):
+            return token[:-1]
+        return token
+
+    stripped = [strip_trailing_k(t) for t in toks]
+    out: list[str] = []
+    for variant in (stripped, toks):
+        s = " ".join(variant)
+        if s and s not in out:
+            out.append(s)
+    # "NADERK JEFF" from a broken single-`<` parse → also try surname-only / given-only
+    if len(stripped) == 2:
+        for part in stripped:
+            if part not in out:
+                out.append(part)
+    return out
 
 
 def _normalize_personal_zone(line2: str) -> str:
@@ -220,18 +276,44 @@ def parse_td3(
     )
 
 
+def _name_quality(mrz: MRZ) -> int:
+    """Lower is better. Prefer <<, no trailing OCR-K, longer clean given (GEORGES > GEORGE)."""
+    score = 0
+    if "<<" not in (mrz.line1 or ""):
+        score += 5
+    sur = (mrz.surname or "").replace(" ", "")
+    giv = (mrz.given_names or "").replace(" ", "")
+    # Trailing K is usually a misread '<' — prefer NADER/KARIM over NADERK/KARIMK
+    if len(sur) > 3 and sur.endswith("K"):
+        score += 4
+    if len(giv) > 3 and giv.endswith("K"):
+        score += 4
+    if not giv:
+        score += 2
+    # Longer given wins GEORGES vs GEORGE; ignore trailing-K length inflation
+    giv_score = giv[:-1] if len(giv) > 3 and giv.endswith("K") else giv
+    score -= len(giv_score)
+    return score
+
+
 def _best_parse(candidates: list[tuple[str, str]], *, today: date | None = None) -> Optional[MRZ]:
     best: MRZ | None = None
     best_score = 10_000
+    best_valid: MRZ | None = None
+    best_valid_q = 10_000
     for l1, l2 in candidates:
         mrz = parse_td3([l1, l2], today=today)
         if mrz.checksums_valid:
-            return mrz
+            q = _name_quality(mrz)
+            if q < best_valid_q:
+                best_valid_q = q
+                best_valid = mrz
+            continue
         score = len(mrz.failed_checks)
         if score < best_score:
             best_score = score
             best = mrz
-    return best
+    return best_valid or best
 
 
 def _extract_line2(raw: str) -> Optional[str]:
@@ -253,14 +335,16 @@ def _candidates_from_passporteye_dict(data: dict) -> list[tuple[str, str]]:
     surnames = _name_candidates((data.get("surname") or "").replace("<", " ").strip())
     givens = _name_candidates(data.get("names") or "")
     split = _split_mrz_text(raw)
-    if split:
-        sur_r, giv_r = _parse_names_from_line1(split[0])
-        for s in _name_candidates(sur_r):
-            if s not in surnames:
-                surnames.append(s)
-        for g in _name_candidates(giv_r):
-            if g not in givens:
-                givens.append(g)
+    raw_l1 = split[0] if split else None
+    if raw_l1:
+        for l1v in _line1_ocr_variants(raw_l1):
+            sur_r, giv_r = _parse_names_from_line1(l1v)
+            for s in _name_candidates(sur_r):
+                if s not in surnames:
+                    surnames.append(s)
+            for g in _name_candidates(giv_r):
+                if g not in givens:
+                    givens.append(g)
 
     cands: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -271,11 +355,21 @@ def _candidates_from_passporteye_dict(data: dict) -> list[tuple[str, str]]:
             seen.add(pair)
             cands.append(pair)
 
-    # Rebuilt line1 from PE fields first (raw OCR line1 is often junked)
+    l2_variants = _ocr_variants(line2)
+
+    # Fixed raw line1 first — catches NADERK<JEFF → NADER<<JEFF before rebuild
+    if raw_l1:
+        for l1 in _line1_ocr_variants(raw_l1):
+            for l2 in l2_variants:
+                add(l1, l2)
+
+    # Rebuilt line1 from PE / parsed name tokens (K-stripped preferred)
     for surname in surnames or [""]:
         for given in givens or [""]:
+            if not surname and not given:
+                continue
             l1 = _rebuild_line1(surname, given, nat)
-            for l2 in _ocr_variants(line2):
+            for l2 in l2_variants:
                 add(l1, l2)
     return cands
 

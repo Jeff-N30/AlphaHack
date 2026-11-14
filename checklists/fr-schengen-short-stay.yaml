@@ -106,12 +106,6 @@ rules:
     source: FV
     on_fail: request
     message: "Passport expires {expiry}; must be valid until at least {required}."
-  - id: PP.BLANK_PAGES
-    check: manual
-    mode: manual
-    params: { min_blank_pages: 2 }
-    source: FV
-
   # ---------- Identity consistency (main technical risk) ----------
   - id: ID.NAME_MATCH
     check: name_consistency

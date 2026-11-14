@@ -73,7 +73,7 @@ def write_case(case_id: str, title: str, mutate, expected: dict) -> None:
         "escalations": expected.get("escalations", 0),
         "critical_rules": expected["critical_rules"],
         "rules": rules,
-        "manual_rules_ignored": ["PP.BLANK_PAGES", "PHOTO.ISO"],
+        "manual_rules_ignored": ["PHOTO.ISO"],
         "draft_message": expected.get(
             "draft_message",
             {

@@ -114,3 +114,20 @@ def test_passport_phone_jpg_case04() -> None:
 
 def test_read_mrz_image_handles_missing() -> None:
     assert read_mrz_image("/nonexistent/passport.png") is None
+
+
+def test_line1_filler_k_not_confused_with_letter() -> None:
+    """OCR often reads MRZ '<' as 'K' — NADERK<JEFF must become NADER<<JEFF."""
+    from app.extract.mrz import _fix_line1_filler_k
+
+    raw = "P<LBNNADERK<JEFF<<<<<<<<<KKEKKKKKKKKKKKKKK<K"
+    fixed = _fix_line1_filler_k(raw)
+    assert fixed.startswith("P<LBNNADER<<JEFF")
+    mrz = parse_td3(
+        [fixed, "LR41164833LBN0306034M35061561002339074<<<<12"],
+        today=_TODAY,
+    )
+    assert mrz.checksums_valid
+    assert mrz.surname == "NADER"
+    assert mrz.given_names == "JEFF"
+    assert mrz.passport_number == "LR4116483"

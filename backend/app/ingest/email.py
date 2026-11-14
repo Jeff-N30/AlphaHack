@@ -244,18 +244,39 @@ def read_matching_emails(
         if status != "OK":
             raise RuntimeError(f"Could not select IMAP folder {settings.email_imap_folder!r}.")
         selected = True
-        criteria_parts = ["UNSEEN" if settings.email_read_unread_only else "ALL"]
+        # Unread-only still includes SUBJECT matches — Gmail often marks mail \Seen
+        # as soon as it is opened, which used to drop real VISA intakes.
+        filt = (settings.email_subject_filter or "").strip()
+        if settings.email_read_unread_only and filt:
+            criteria_parts = ["OR", "UNSEEN", "SUBJECT", filt]
+        elif settings.email_read_unread_only:
+            criteria_parts = ["UNSEEN"]
+        else:
+            criteria_parts = ["ALL"]
         if started_after is not None:
-            criteria_parts.extend(("SINCE", started_after.astimezone(timezone.utc).strftime("%d-%b-%Y")))
+            criteria_parts.extend(
+                ("SINCE", started_after.astimezone(timezone.utc).strftime("%d-%b-%Y"))
+            )
         criteria = tuple(criteria_parts)
         status, data = mailbox.uid("search", None, *criteria)
         if status != "OK":
             raise RuntimeError("Could not search the email inbox.")
 
+        processed_uids_path = output_dir / "processed_uids.txt"
+        already: set[str] = set()
+        if processed_uids_path.exists():
+            already = {
+                line.strip()
+                for line in processed_uids_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            }
+
         for uid_bytes in data[0].split():
             if max_messages is not None and processed_count >= max_messages:
                 break
             uid = uid_bytes.decode("ascii")
+            if uid in already:
+                continue
             status, fetched = mailbox.uid("fetch", uid, "(INTERNALDATE RFC822)")
             if status != "OK" or not fetched or not isinstance(fetched[0], tuple):
                 raise RuntimeError(f"Could not fetch email UID {uid}.")
@@ -322,6 +343,10 @@ def read_matching_emails(
             shutil.move(str(stage_dir), str(email_dir))
             _mark_seen(mailbox, uid)
             processed_count += 1
+            already.add(uid)
+            processed_uids_path.write_text(
+                "\n".join(sorted(already)) + "\n", encoding="utf-8"
+            )
             filenames = [
                 str(email_dir / "message.eml"),
                 str(email_dir / "body.txt"),
