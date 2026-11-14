@@ -113,8 +113,9 @@ def test_extract_by_type_dispatch(offline_settings: Settings) -> None:
     assert p.doc_type == DocType.payslip
     fr = extract_by_type(DocType.family_register, "x", settings=offline_settings)
     assert fr.doc_type == DocType.family_register
-    with pytest.raises(NotImplementedError):
-        extract_by_type(DocType.cnss_certificate, "x", settings=offline_settings)
+    g = extract_by_type(DocType.cnss_certificate, "CNSS registration", settings=offline_settings)
+    assert g.doc_type == DocType.cnss_certificate
+    assert g.summary
 
 
 def test_offline_bank_hotel_feed_rules(offline_settings: Settings) -> None:

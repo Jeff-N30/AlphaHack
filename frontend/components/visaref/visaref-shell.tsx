@@ -31,6 +31,7 @@ import {
   postEmailInboxRead,
   postGloriaAction,
   postSeedCase,
+  uploadAndAudit,
   type ApplicationRow,
 } from "@/lib/api";
 
@@ -169,7 +170,7 @@ const TONE: Record<Tone, string> = {
   critical: statusFail,
 };
 
-type NavView = "queue" | "approved" | "sent_back" | "inbox";
+type NavView = "queue" | "approved" | "sent_back" | "inbox" | "upload";
 
 function bucket(row: ApplicationRow): "queue" | "approved" | "sent_back" | "other" {
   if (row.status?.startsWith("approved")) return "approved";
@@ -323,6 +324,14 @@ const AREA_META: {
     title: "Email inbox",
     action: "Read inbox",
     listTitle: "Pipeline",
+  },
+  {
+    id: "upload",
+    label: "Upload",
+    icon: File01Icon,
+    title: "Upload file pack",
+    action: "Audit files",
+    listTitle: "Upload",
   },
 ];
 
@@ -887,12 +896,13 @@ export default function VisaRefShell() {
       approved: rows.filter((r) => bucket(r) === "approved").length,
       sent_back: rows.filter((r) => bucket(r) === "sent_back").length,
       inbox: 0,
+      upload: 0,
     }),
     [rows],
   );
 
   const filtered = useMemo(() => {
-    if (areaId === "inbox") return [];
+    if (areaId === "inbox" || areaId === "upload") return [];
     const list = rows.filter((r) => bucket(r) === areaId);
     // Ready-to-approve first, then review, then the rest
     const rank = (r: ApplicationRow) => {
@@ -934,11 +944,31 @@ export default function VisaRefShell() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadMut = useMutation({
+    mutationFn: (files: File[]) => uploadAndAudit(files),
+    onSuccess: (data) => {
+      toast.success(`Audited · ${shortId(data.id)}`);
+      setUploadFiles([]);
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+      qc.invalidateQueries({ queryKey: ["applications"] });
+      setAreaId("queue");
+      setSelectedId(data.id);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const primaryAction = () => {
     if (areaId === "inbox") inboxMut.mutate();
-    else seedMut.mutate("case01_complete");
+    else if (areaId === "upload") {
+      if (uploadFiles.length) uploadMut.mutate(uploadFiles);
+      else uploadInputRef.current?.click();
+    } else seedMut.mutate("case01_complete");
   };
-  const primaryBusy = seedMut.isPending || inboxMut.isPending;
+  const primaryBusy =
+    seedMut.isPending || inboxMut.isPending || uploadMut.isPending;
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -1051,6 +1081,8 @@ export default function VisaRefShell() {
               <HugeiconsIcon icon={Loading03Icon} size={14} className="animate-spin" />
             ) : areaId === "inbox" ? (
               <HugeiconsIcon icon={Mail01Icon} size={14} />
+            ) : areaId === "upload" ? (
+              <HugeiconsIcon icon={File01Icon} size={14} />
             ) : (
               <HugeiconsIcon icon={File01Icon} size={14} />
             )}
@@ -1093,6 +1125,94 @@ export default function VisaRefShell() {
                         <HugeiconsIcon icon={Mail01Icon} size={16} />
                       )}
                       Read inbox now
+                    </button>
+                    <button
+                      type="button"
+                      className={cx(secondaryButton, buttonLg)}
+                      onClick={() => setAreaId("queue")}
+                    >
+                      Back to queue
+                    </button>
+                  </div>
+                </motion.div>
+              </main>
+            ) : areaId === "upload" ? (
+              <main className="flex h-full flex-col items-start justify-center gap-4 p-6 sm:p-10">
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.28, ease: EASE_OUT }}
+                  className="max-w-lg"
+                >
+                  <p className={cx(typeCaption, text3)}>File pack</p>
+                  <h2 className={cx(typeHeadingSm, "mt-2")}>
+                    Upload &amp; audit
+                  </h2>
+                  <p className={cx(typeBodySm, text2, "mt-3")}>
+                    Drop PDFs or passport images. VisaRef extracts fields, runs
+                    the checklist, then waits for your Approve / Send back.
+                  </p>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                    className="sr-only"
+                    onChange={(e) =>
+                      setUploadFiles(Array.from(e.target.files ?? []))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className={cx(
+                      panel,
+                      hoverFill,
+                      pressedFill,
+                      transition,
+                      focusRing,
+                      "mt-5 w-full cursor-pointer p-4 text-left",
+                    )}
+                    onClick={() => uploadInputRef.current?.click()}
+                  >
+                    <span className={cx(typeLabel, text1)}>
+                      {uploadFiles.length
+                        ? `${uploadFiles.length} file${uploadFiles.length === 1 ? "" : "s"} selected`
+                        : "Choose PDF / PNG / JPG"}
+                    </span>
+                    {uploadFiles.length > 0 ? (
+                      <ul className={cx(typeCaption, text3, "mt-2 space-y-0.5")}>
+                        {uploadFiles.slice(0, 8).map((f) => (
+                          <li key={f.name + f.size} className="truncate">
+                            {f.name}
+                          </li>
+                        ))}
+                        {uploadFiles.length > 8 ? (
+                          <li>+{uploadFiles.length - 8} more</li>
+                        ) : null}
+                      </ul>
+                    ) : (
+                      <span className={cx(typeCaption, text3, "mt-1 block")}>
+                        Multi-select the full visa pack
+                      </span>
+                    )}
+                  </button>
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={cx(primaryButton, buttonLg)}
+                      disabled={uploadMut.isPending || uploadFiles.length === 0}
+                      onClick={() => uploadMut.mutate(uploadFiles)}
+                    >
+                      {uploadMut.isPending ? (
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={16}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <HugeiconsIcon icon={File01Icon} size={16} />
+                      )}
+                      Run audit
                     </button>
                     <button
                       type="button"

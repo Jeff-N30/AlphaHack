@@ -31,9 +31,9 @@ cd frontend && pnpm install && pnpm dev   # → http://localhost:3000
 ### Desk
 1. **Seed complete case** → Approve  
 2. **Seed bank failure** → Send back (draft shown)  
-3. **Read inbox** → VISA subject or Llama-triaged empty subject → queue  
+3. **Upload** → drop Jeff’s PDF pack → Run audit → queue  
+4. **Read inbox** → VISA / Llama-triaged → queue  
 
-Upload path: `POST /applications` then `POST /applications/{id}/run` (same extract→rules→queue).  
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
 
 ## Pipeline
