@@ -1,0 +1,56 @@
+---
+description: VisaRef project rules - architecture, human-click lock, AI-extracts-code-decides, privacy, testing
+globs:
+alwaysApply: true
+---
+
+# VisaRef: non-negotiable rules
+
+## Product
+VisaRef pre-checks visa application files for Gloria, a visa officer at a Lebanese travel agency.
+Demo destination: France Schengen short-stay via TLScontact Beirut (`checklists/fr-schengen-short-stay.yaml`).
+Architecture must stay destination-agnostic: destination logic lives ONLY in `checklists/*.yaml` params.
+No LBP / Lebanese-pound logic anywhere. Unknown currency or destination → NEEDS_HUMAN, never a guess.
+
+## 1. AI extracts, code decides
+- LLM calls live only in `backend/app/extract/` and `backend/app/drafts/`.
+- LLMs output Pydantic models from `schemas/models.py` (extractions, classified pages, draft text). Nothing else.
+- NEVER ask an LLM whether something is valid, sufficient, matching, expired or compliant. NEVER parse PASS/FAIL from LLM text.
+- Every PASS/FAIL is produced by a pure function in `backend/app/rules/checks/` registered under the checklist's `check:` name, signature
+  `def check(facts: Facts, params: dict, ctx: RuleContext) -> CheckResult`. No I/O, no network, no LLM, no `datetime.now()` (use `ctx.submission_date`).
+- `mode: llm_flag` rules can only return PASS (no flag raised) or NEEDS_HUMAN. Never FAIL.
+- `mode: manual` rules always return NEEDS_HUMAN and are excluded from `escalations`.
+- Every CheckResult must include at least one `Evidence{doc, field, value, page}` unless the doc is missing.
+- Rules whose required docs are missing go to `AuditReport.skipped_rules`, not to results.
+- Date math uses `dateutil.relativedelta`. Money compares in the checklist `reference_currency` using `fx_rates_to_eur` from YAML.
+- Passport identity comes from the MRZ (`extract/mrz.py`, ICAO 9303 check digits via `mrz` lib). If the checksum fails → PP.MRZ_CHECKSUM NEEDS_HUMAN; never fall back silently to LLM-read fields.
+- Name matching: normalize (upper, strip accents/punctuation, `/`→space, drop MR/MRS/MS, AL/EL/AL- particle), then `rapidfuzz.fuzz.token_sort_ratio`. NEVER `token_set_ratio`. Thresholds come from YAML.
+- Low extraction confidence (< YAML `min_confidence`) → NEEDS_HUMAN.
+
+## 2. Human-click lock (enforced in code, not prompts)
+- The pipeline only creates `ApplicantMessageDraft(status=DRAFT)` and an `AuditReport`.
+- Only `backend/app/lock/actions.py` may: send a message, approve an application, override a check, change DraftStatus.
+- `backend/app/outbound/` may be imported ONLY by `lock/actions.py`. Keep `tests/test_lock.py` that AST-scans `extract/`, `rules/`, `drafts/` and fails on any outbound import.
+- Lock endpoints require an officer session AND a one-time confirm token (single use, bound to application_id + action, 120 s TTL). Replays → 409.
+- Every lock action writes an `audit_log` row (officer, action, timestamp, sha256 of sent body).
+- No background job, webhook or agent loop may call lock actions.
+
+## 3. Privacy
+- Test data is FAKE only (`tools/generate_fake_docs.py`). Never commit real documents; `data/` is gitignored.
+- Files stored under `DATA_DIR/applications/<id>/`; optional Fernet encryption; retention purge per `.env`.
+- Never log document images, full passport numbers or extracted PII. Mask as `LR05****02`.
+- Only send page images to the configured LLM provider; no other third parties.
+
+## 4. Code style
+- Python 3.12+, FastAPI, Pydantic v2, SQLModel, type hints everywhere, `ruff` clean. Small pure functions.
+- Frontend: Next.js 16 App Router, TypeScript strict, Tailwind v4, shadcn/ui, TanStack Query. API types mirror Pydantic models.
+- Config via `.env` (see `.env.example`). No hardcoded keys, model names or prices.
+- Every LLM call goes through `extract/llm.py`, which records a `CostLine` (model, input/output tokens incl. thinking, USD from env prices) and retries with tenacity.
+- Cache LLM extraction by sha256(file) + model + prompt version (enables offline demo with `DEMO_OFFLINE=1`).
+
+## 5. Testing expectations
+- Unit tests for every `check:` function (happy path, boundary, missing field). Boundaries: exactly 3 months, exactly 90 days, exactly 15 days, threshold 85/70.
+- `tests/test_mrz.py` runs on every `eval/cases/*/docs/passport.png` + one tampered MRZ (must fail checksum).
+- `tests/test_cases.py` runs the rules engine on facts built directly from `case.yaml` (no LLM) and must match `expected.yaml` 100%. This isolates rules bugs from extraction bugs.
+- `eval/run.py` (full pipeline with LLM) + `eval/score.py` is the nightly scoreboard. Do not edit expected.yaml to make a run pass unless the expectation was wrong; note why in the commit.
+- When adding a rule: YAML entry with `source` URL → check function → unit tests → expected.yaml updates.

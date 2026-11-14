@@ -1,0 +1,55 @@
+# Expected VisaRef output for case03_passport_validity. Status values: PASS | FAIL | NEEDS_HUMAN | SKIPPED (= rule in skipped_rules)
+case_id: case03_passport_validity
+outcome: SEND_BACK
+escalations: 0
+critical_rules:
+- PP.VALID_AFTER_DEPARTURE
+- PP.ISSUED_WITHIN_10Y
+- PP.NOT_EXPIRED
+rules:
+  DOC.PRESENT: PASS
+  PP.MRZ_CHECKSUM: PASS
+  PP.MRZ_MATCHES_VIZ: PASS
+  PP.NOT_EXPIRED: PASS
+  PP.ISSUED_WITHIN_10Y: PASS
+  PP.VALID_AFTER_DEPARTURE: FAIL
+  ID.NAME_MATCH: PASS
+  ID.FORM_MATCHES_PASSPORT: PASS
+  ID.DOB_MATCH: PASS
+  ID.PASSPORT_NO_MATCH: PASS
+  TRIP.ROUND_TRIP: PASS
+  TRIP.MAX_90_DAYS: PASS
+  TRIP.FILING_WINDOW: PASS
+  TRIP.HOTEL_COVERS_STAY: PASS
+  TRIP.HOTEL_IN_DESTINATION: PASS
+  INS.MIN_COVERAGE: PASS
+  INS.TERRITORY: PASS
+  INS.COVERS_STAY: PASS
+  INS.MEDICAL_REPATRIATION: PASS
+  BANK.WINDOW: PASS
+  BANK.STAMPED: PASS
+  BANK.SUFFICIENT_FUNDS: PASS
+  BANK.LARGE_RECENT_DEPOSIT: PASS
+  EMP.LETTER_FIELDS: PASS
+  EMP.LEAVE_COVERS_TRIP: PASS
+  EMP.PAYSLIPS_RECENT: PASS
+  FAM.ISSUED_WITHIN_6M: PASS
+  SUS.DOC_ANOMALY: PASS
+  SUS.LOW_CONFIDENCE: PASS
+manual_rules_ignored:
+- PP.BLANK_PAGES
+- PHOTO.ISO
+draft_message:
+  required: true
+  must_mention:
+  - passport
+  - 10/02/2027
+  - 05/04/2027
+  - renew
+  must_not_mention:
+  - refused
+  - rejected
+  - LBP
+notes: Return 2027-01-05 + 3 months = 2027-04-05 > expiry 2027-02-10 -> FAIL. Issued
+  2017-02-11 is < 10y before 2026-11-16 -> PASS. Not expired today -> PASS. Bank window
+  still passes (period ends 2026-10-31).

@@ -1,0 +1,291 @@
+# =============================================================================
+# VisaRef checklist: France, Schengen short-stay (type C), tourism, filed at
+# TLScontact Beirut. FAKE-DATA DEMO CONFIG, not legal advice. Gloria owns this file.
+#
+# Sources (last checked 2026-11-14):
+#  [FV]  France-Visas, application guidelines (passport <10y, >=2 blank pages,
+#        valid >=3 months after leaving Schengen; file 6 months to 2 weeks before departure)
+#        https://www.france-visas.gouv.fr/en/web/france-visas/visa-application-guidelines
+#  [FVS] France-Visas, short-stay visa (max 90 days in any 180)
+#        https://france-visas.gouv.fr/en/short-stay-visa
+#  [EU]  Commission Implementing Decision C(2024) 1527, harmonised list of supporting
+#        documents for short-stay visa applicants in LEBANON (binds all Schengen states,
+#        including France). Says: round trip, accommodation, bank statements of the
+#        past SIX months stamped by the bank; employee letter + last 3 payslips + CNSS;
+#        ekhraj kaid aily <= 6 months old; tourism travel plan.
+#        https://home-affairs.ec.europa.eu/document/download/2618391e-a001-45b3-80fc-21309482941a_en
+#  [SP]  Service-Public.fr F1765: insurance >= EUR 30,000; means of subsistence per day:
+#        EUR 65 with a hotel booking, EUR 120 without, EUR 32.50 with an attestation d'accueil
+#        https://www.service-public.gouv.fr/particuliers/vosdroits/F1765
+#  [SPV] Service-Public.fr F16146 (cerfa 14076, passport rules, insurance EUR 30,000)
+#        https://sites.service-information-publique.fr/vias/guide-particuliers/F16146.html
+#  [TLS] TLScontact Beirut (France) application process: France-Visas form data must
+#        exactly match the passport; France-Visas then generates a PERSONALISED list.
+#        https://visas-fr.tlscontact.com/en-us/country/lb/vac/lbBEY2fr/application-process
+#  [TLS-IT] TLScontact Beirut list for ITALY tourism (used only as Beirut VAC practice for
+#        "statement issued < 1 month ago" and "stamped"; NOT a France rule):
+#        https://static.tlscontact.com/media/lb/bey/it/tlscontact_documents_list_lb_tourism.pdf
+#
+# NOTE: the bank statement window is 6 months per [EU]. The Italy TLS list says 3.
+# It's a param, so Gloria can change it. Confirm against the France-Visas personalised list.
+#
+# mode:
+#   code    = deterministic Python over extracted fields. The ONLY mode that can return PASS/FAIL.
+#   llm_flag= LLM may only RAISE a flag -> NEEDS_HUMAN. It can never PASS or FAIL.
+#   manual  = Gloria confirms by eye at approval (routine). Not counted as an escalation.
+# on_fail:  request = draft a message to the applicant | flag = internal note for Gloria
+# docs:     the rule is SKIPPED (listed in skipped_rules) if any of these doc types is missing
+# fail_status: status to emit instead of FAIL when the check fails (e.g. NEEDS_HUMAN)
+# =============================================================================
+id: fr-schengen-short-stay
+version: 0.1.0
+last_verified: "2026-11-14"
+destination: { country: FR, zone: SCHENGEN, visa_type: C, purpose: tourism }
+filing_center: TLScontact Beirut (France)
+reference_currency: EUR
+fx_rates_to_eur:   # set manually by Gloria each week. No LBP: other currencies -> NEEDS_HUMAN
+  EUR: 1.0
+  USD: 0.86        # PLACEHOLDER, update before demo
+schengen_countries: [AT, BE, BG, HR, CZ, DK, EE, FI, FR, DE, GR, HU, IS, IT, LV, LI, LT, LU, MT, NL, NO, PL, PT, RO, SK, SI, ES, SE, CH]  # [SP] F1765
+applicant_profiles: [employee]    # demo scope. Add self_employed, student, retired later
+
+required_documents:
+  - { type: application_form, label: "France-Visas form + receipt (printed, signed)", source: TLS }
+  - { type: photo,            label: "2 recent ISO/IEC ID photos", min_count: 2, source: FV }
+  - { type: passport,         label: "Passport (bio page)", source: FV }
+  - { type: flight_booking,   label: "Round-trip flight reservation", source: EU }
+  - { type: hotel_booking,    label: "Hotel reservation (or invitation/attestation)", source: EU }
+  - { type: travel_insurance, label: "Schengen travel medical insurance", source: SP }
+  - { type: bank_statement,   label: "Stamped personal bank statement", source: EU }
+  - { type: family_register,  label: "Ekhraj kaid aily (family register extract)", source: EU }
+  - { type: travel_plan,      label: "Tourism: travel plan / itinerary", source: EU }
+  - { type: employment_letter, label: "Employer letter", when: "profile == employee", source: EU }
+  - { type: payslip,          label: "Last 3 payslips", min_count: 3, when: "profile == employee", source: EU }
+  - { type: cnss_certificate, label: "CNSS registration", when: "profile == employee", source: EU }
+
+rules:
+  # ---------- Presence (one generated per required_documents entry) ----------
+  - id: DOC.PRESENT
+    check: documents_present
+    mode: code
+    on_fail: request
+    message: "Missing: {missing_labels}"
+
+  # ---------- Passport ----------
+  - id: PP.MRZ_CHECKSUM
+    check: mrz_checksums_valid          # passporteye/mrz lib; ICAO 9303 TD3 check digits
+    mode: code
+    docs: [passport]
+    on_fail: flag                       # bad scan OR tampering -> Gloria looks
+    fail_status: NEEDS_HUMAN
+    message: "Passport MRZ check digits do not validate (bad scan or altered document)."
+  - id: PP.MRZ_MATCHES_VIZ
+    check: mrz_matches_visual_zone      # MRZ (deterministic) vs LLM-read printed fields
+    mode: code
+    docs: [passport]
+    on_fail: flag
+    fail_status: NEEDS_HUMAN
+  - id: PP.NOT_EXPIRED
+    check: date_after
+    mode: code
+    docs: [passport]
+    params: { field: passport.expiry_date, ref: submission_date }
+    on_fail: request
+  - id: PP.ISSUED_WITHIN_10Y
+    check: passport_issued_within_years
+    mode: code
+    docs: [passport]
+    params: { years: 10, ref: submission_date }
+    source: FV
+    on_fail: request
+  - id: PP.VALID_AFTER_DEPARTURE
+    check: passport_valid_after_departure
+    mode: code
+    docs: [passport, flight_booking]
+    params: { months: 3 }               # after the return flight leaves Schengen
+    source: FV
+    on_fail: request
+    message: "Passport expires {expiry}; must be valid until at least {required}."
+  - id: PP.BLANK_PAGES
+    check: manual
+    mode: manual
+    params: { min_blank_pages: 2 }
+    source: FV
+
+  # ---------- Identity consistency (main technical risk) ----------
+  - id: ID.NAME_MATCH
+    check: name_consistency
+    mode: code
+    docs: [passport]
+    params:
+      compare: [flight_booking, hotel_booking, travel_insurance, bank_statement, employment_letter, payslip, application_form]  # whichever are present
+      reference: passport.mrz           # MRZ name is the source of truth
+      exact_after_normalize: PASS       # case, accents, hyphens, Al-/El- particles, token order
+      variant_threshold: 85             # rapidfuzz token_sort_ratio (NOT token_set: "KARIM" vs "KARIM NASSAR" scores 100); 85-99 -> NEEDS_HUMAN
+      fail_below: 70                    # 70-84 -> NEEDS_HUMAN; below 70 -> FAIL (wrong person or wrong doc)
+    on_fail: flag
+  - id: ID.FORM_MATCHES_PASSPORT
+    check: form_matches_passport        # [TLS]: form must exactly match the passport
+    mode: code
+    docs: [application_form, passport]
+    params: { fields: [surname, given_names, date_of_birth, passport_number, expiry_date] }
+    source: TLS
+    on_fail: request
+  - id: ID.DOB_MATCH
+    check: field_equal_across_docs
+    mode: code
+    params: { field: date_of_birth, docs: [passport, travel_insurance, application_form] }
+    on_fail: flag
+    fail_status: NEEDS_HUMAN
+  - id: ID.PASSPORT_NO_MATCH
+    check: field_equal_across_docs
+    mode: code
+    params: { field: passport_number, docs: [passport, travel_insurance, flight_booking, application_form], optional_missing: true }
+    on_fail: request
+
+  # ---------- Trip ----------
+  - id: TRIP.ROUND_TRIP
+    check: flight_round_trip
+    mode: code
+    docs: [flight_booking]
+    params: { home_airports: [BEY], dest_zone: SCHENGEN }
+    source: EU
+    on_fail: request
+  - id: TRIP.MAX_90_DAYS
+    check: stay_length_max
+    mode: code
+    docs: [flight_booking]
+    params: { max_days: 90 }
+    source: FVS
+    on_fail: request
+  - id: TRIP.FILING_WINDOW
+    check: filing_window
+    mode: code
+    docs: [flight_booking]
+    params: { min_days_before_departure: 15, max_months_before_departure: 6 }
+    source: FV
+    on_fail: flag
+  - id: TRIP.HOTEL_COVERS_STAY
+    check: accommodation_covers_stay    # check-in <= arrival AND check-out >= return date, no gaps
+    mode: code
+    docs: [hotel_booking, flight_booking]
+    params: { allow_gap_nights: 0 }
+    on_fail: request
+    message: "Hotel {checkin}->{checkout} does not cover stay {arrival}->{return}."
+  - id: TRIP.HOTEL_IN_DESTINATION
+    check: hotel_country_in
+    mode: code
+    docs: [hotel_booking]
+    params: { countries: [FR] }
+    on_fail: flag
+    fail_status: NEEDS_HUMAN
+
+  # ---------- Insurance ----------
+  - id: INS.MIN_COVERAGE
+    check: insurance_min_coverage
+    mode: code
+    docs: [travel_insurance]
+    params: { min_amount: 30000, currency: EUR }   # non-EUR -> NEEDS_HUMAN
+    source: SP
+    on_fail: request
+  - id: INS.TERRITORY
+    check: insurance_territory
+    mode: code
+    docs: [travel_insurance]
+    params: { accepted: [SCHENGEN, EUROPE, WORLDWIDE] }   # "Europe" excluding Schengen states -> FAIL
+    on_fail: request
+  - id: INS.COVERS_STAY
+    check: insurance_covers_stay
+    mode: code
+    docs: [travel_insurance, flight_booking]
+    on_fail: request
+  - id: INS.MEDICAL_REPATRIATION
+    check: insurance_covers_items
+    mode: code
+    docs: [travel_insurance]
+    params: { required: [emergency_medical, hospitalisation, repatriation] }
+    source: SPV
+    on_fail: request
+
+  # ---------- Funds ----------
+  - id: BANK.WINDOW
+    check: statement_window
+    mode: code
+    docs: [bank_statement]
+    params: { months: 6, max_age_days: 31 }  # months [EU]; max_age_days [TLS-IT] Beirut practice
+    # covered if period_start <= period_end - months + 1 day (01/05/2026 -> 31/10/2026 = 6 months);
+    # age = submission_date - issue_date <= max_age_days
+    source: EU
+    on_fail: request
+  - id: BANK.STAMPED
+    check: llm_bool
+    mode: llm_flag
+    docs: [bank_statement]
+    params: { field: bank_statement.has_bank_stamp }
+    source: EU
+  - id: BANK.SUFFICIENT_FUNDS
+    check: sufficient_funds
+    mode: code
+    docs: [bank_statement, flight_booking]
+    params: { eur_per_day: { hotel: 65, no_proof: 120, attestation_accueil: 32.5 } }
+    source: SP
+    on_fail: request
+  - id: BANK.LARGE_RECENT_DEPOSIT
+    check: large_recent_deposit         # agency policy: unexplained deposit before filing
+    mode: code
+    docs: [bank_statement]
+    params: { window_days: 30, pct_of_closing_balance: 50 }
+    on_fail: flag
+    fail_status: NEEDS_HUMAN
+
+  # ---------- Employment (profile == employee) ----------
+  - id: EMP.LETTER_FIELDS
+    check: required_fields
+    mode: code
+    docs: [employment_letter]
+    params: { fields: [employer_name, position, hire_date, monthly_salary, leave_start, leave_end] }
+    source: EU
+    on_fail: request
+  - id: EMP.LEAVE_COVERS_TRIP
+    check: leave_covers_trip
+    mode: code
+    docs: [employment_letter, flight_booking]
+    on_fail: request
+  - id: EMP.PAYSLIPS_RECENT
+    check: payslips_recent
+    mode: code
+    docs: [payslip]
+    params: { count: 3, consecutive: true, latest_within_days: 45 }
+    source: EU
+    on_fail: request
+
+  # ---------- Civil ----------
+  - id: FAM.ISSUED_WITHIN_6M
+    check: issued_within_months
+    mode: code
+    docs: [family_register]
+    params: { months: 6, field: family_register.issue_date }
+    source: EU
+    on_fail: request
+
+  # ---------- Suspicion / quality (never auto-decided) ----------
+  - id: SUS.DOC_ANOMALY
+    check: llm_anomaly_flags            # font mismatch, edited numbers, missing stamp, etc.
+    mode: llm_flag
+    params: { doc_types: [passport, bank_statement, employment_letter, hotel_booking, travel_insurance] }  # whichever are present
+  - id: SUS.LOW_CONFIDENCE
+    check: low_extraction_confidence    # any required field with confidence < 0.8
+    mode: code
+    params: { min_confidence: 0.8 }
+    on_fail: flag
+    fail_status: NEEDS_HUMAN
+  - id: PHOTO.ISO
+    check: manual
+    mode: manual
+    source: FV
+
+outcome:
+  # computed in code, in this order
+  - { if: "any FAIL with on_fail=request", then: SEND_BACK }       # Gloria reviews draft, clicks Send
+  - { if: "any FAIL with on_fail=flag, or any NEEDS_HUMAN (excluding mode=manual)", then: NEEDS_GLORIA }
+  - { else: READY_FOR_APPROVAL }                                    # Gloria ticks manual items, clicks Approve

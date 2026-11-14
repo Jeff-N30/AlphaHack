@@ -1,0 +1,5 @@
+# for tools/generate_fake_docs.py and eval/score.py only
+pyyaml>=6
+pillow>=10
+reportlab>=4
+mrz>=0.6        # used to self-verify generated MRZ check digits

@@ -1,0 +1,50 @@
+# Expected VisaRef output for case04_name_mismatch. Status values: PASS | FAIL | NEEDS_HUMAN | SKIPPED (= rule in skipped_rules)
+case_id: case04_name_mismatch
+outcome: NEEDS_GLORIA
+escalations: 1
+critical_rules:
+- ID.NAME_MATCH
+rules:
+  DOC.PRESENT: PASS
+  PP.MRZ_CHECKSUM: PASS
+  PP.MRZ_MATCHES_VIZ: PASS
+  PP.NOT_EXPIRED: PASS
+  PP.ISSUED_WITHIN_10Y: PASS
+  PP.VALID_AFTER_DEPARTURE: PASS
+  ID.NAME_MATCH: NEEDS_HUMAN
+  ID.FORM_MATCHES_PASSPORT: PASS
+  ID.DOB_MATCH: PASS
+  ID.PASSPORT_NO_MATCH: PASS
+  TRIP.ROUND_TRIP: PASS
+  TRIP.MAX_90_DAYS: PASS
+  TRIP.FILING_WINDOW: PASS
+  TRIP.HOTEL_COVERS_STAY: PASS
+  TRIP.HOTEL_IN_DESTINATION: PASS
+  INS.MIN_COVERAGE: PASS
+  INS.TERRITORY: PASS
+  INS.COVERS_STAY: PASS
+  INS.MEDICAL_REPATRIATION: PASS
+  BANK.WINDOW: PASS
+  BANK.STAMPED: PASS
+  BANK.SUFFICIENT_FUNDS: PASS
+  BANK.LARGE_RECENT_DEPOSIT: PASS
+  EMP.LETTER_FIELDS: PASS
+  EMP.LEAVE_COVERS_TRIP: PASS
+  EMP.PAYSLIPS_RECENT: PASS
+  FAM.ISSUED_WITHIN_6M: PASS
+  SUS.DOC_ANOMALY: PASS
+  SUS.LOW_CONFIDENCE: PASS
+manual_rules_ignored:
+- PP.BLANK_PAGES
+- PHOTO.ISO
+draft_message:
+  required: false
+  must_mention: []
+  must_not_mention:
+  - refused
+  - rejected
+  - LBP
+notes: token_sort_ratio("mohamad al hajj","mohammad al hajj") = 96.8 -> 85..99 band
+  -> NEEDS_HUMAN with evidence from passport MRZ and bank_statement.account_holder.
+  No draft required; Gloria decides whether to ask the bank for a name-confirmation
+  letter. Departure 2026-12-05 is 19 days after submission (window OK).
