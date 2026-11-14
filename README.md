@@ -43,6 +43,12 @@ the UI in separate terminal windows:
 
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
 
+The desk has a compact MVP lock screen with PIN `0000`; an unlocked browser
+session expires after five minutes. This is only a UI convenience lock. The
+local database remains regular SQLite so it can be opened in TablePlus or
+SQLiteStudio; use Windows user permissions and disk encryption for machine-level
+protection.
+
 ## Pipeline
 
 ```text
