@@ -10,17 +10,17 @@ from app.rules.registry import register
 
 
 def _mrz_reference(facts: Facts) -> str | None:
-    """Passport identity for name checks comes only from a checksum-valid MRZ.
+    """Passport identity for name checks comes from the MRZ parse (not LLM/VIZ).
 
-    Failed checksums → refuse the OCR name (no silent fallback to viz/LLM fields).
+    Checksums failing still allow the cleaned MRZ OCR name (BARK JOE) so a
+    swapped passport FAILs ID.NAME_MATCH against the rest of the pack. We never
+    fall back to visual-zone/LLM fields when an MRZ object exists.
     """
     pp = facts.first(DocType.passport)
     if pp is None:
         return None
     mrz = getattr(pp, "mrz", None)
     if mrz is not None:
-        if not mrz.checksums_valid:
-            return None
         name = f"{mrz.surname or ''} {mrz.given_names or ''}".strip()
         return name or None
     name = f"{getattr(pp, 'surname', '') or ''} {getattr(pp, 'given_names', '') or ''}".strip()
@@ -61,22 +61,15 @@ def _doc_label(dtype: DocType) -> str:
 def name_consistency(facts: Facts, params: dict[str, Any], ctx: RuleContext):
     ref = _mrz_reference(facts)
     if not ref:
-        pp = facts.first(DocType.passport)
-        mrz = getattr(pp, "mrz", None) if pp is not None else None
-        if mrz is not None and not mrz.checksums_valid:
-            return needs_human(
-                "ID.NAME_MATCH",
-                "Passport MRZ check digits failed — can’t trust the name until the MRZ is readable",
-                evidence=[ev("passport", "mrz", "checksums_invalid")],
-            )
         return needs_human("ID.NAME_MATCH", "Couldn’t read a name from the passport.")
     variant = int(params.get("variant_threshold", 85))
     fail_below = int(params.get("fail_below", 70))
     compare = params.get("compare") or []
     worst = Status.PASS
     evidence = [ev("passport", "mrz_name", ref)]
-    # (score, dtype, candidate) for the weakest non-PASS match
-    weakest: tuple[float, DocType, str] | None = None
+    # One row per mismatched doc type (dedupe payslips etc. by label)
+    mismatches: list[tuple[float, DocType, str]] = []
+    seen_docs: set[DocType] = set()
     for name in compare:
         dtype = DocType(name)
         for doc in facts.get(dtype):
@@ -89,24 +82,28 @@ def name_consistency(facts: Facts, params: dict[str, Any], ctx: RuleContext):
                     worst = Status.FAIL
                 elif st == Status.NEEDS_HUMAN and worst != Status.FAIL:
                     worst = Status.NEEDS_HUMAN
-                if st != Status.PASS and (
-                    weakest is None or score < weakest[0]
-                ):
-                    weakest = (score, dtype, cand)
+                if st != Status.PASS and dtype not in seen_docs:
+                    seen_docs.add(dtype)
+                    mismatches.append((score, dtype, cand))
     if worst == Status.PASS:
         return ok(
             "ID.NAME_MATCH",
             "Names on the pack match the passport",
             evidence=evidence,
         )
-    if weakest is not None:
-        _score, dtype, cand = weakest
+    mismatches.sort(key=lambda t: t[0])  # worst first
+    parts = [f"{_doc_label(dt)} (“{cand}”)" for _s, dt, cand in mismatches]
+    listed = ", ".join(parts)
+    if worst == Status.FAIL:
         msg = (
-            f"Passport says “{ref}”; {_doc_label(dtype)} says “{cand}” "
-            f"— confirm it’s the same person"
+            f"Passport says “{ref}” — doesn’t match {listed} "
+            f"— ask applicant to fix"
         )
     else:
-        msg = "A name on the pack doesn’t match the passport — confirm it’s the same person"
+        msg = (
+            f"Passport says “{ref}” — check {listed} "
+            f"— confirm it’s the same person"
+        )
     if worst == Status.NEEDS_HUMAN:
         return needs_human("ID.NAME_MATCH", msg, evidence=evidence)
     return fail("ID.NAME_MATCH", msg, evidence=evidence)
