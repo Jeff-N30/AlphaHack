@@ -35,7 +35,7 @@ def issue_confirm_token(
     *,
     application_id: str,
     action: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     ttl_s: int = TOKEN_TTL_S,
 ) -> ConfirmToken:
     action = action.lower().strip()

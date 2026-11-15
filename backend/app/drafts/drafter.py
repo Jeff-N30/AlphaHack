@@ -97,7 +97,12 @@ def draft_ready(
 
 
 def attach_drafts(audit: AuditReport, *, applicant_first_name: str = "Applicant") -> AuditReport:
-    """Attach send-back draft on FAIL requests, or ready-for-TLS draft when clean."""
+    """Attach send-back draft on FAIL requests, or ready-for-TLS draft when clean.
+
+    NEEDS_GLORIA (look-items only) also gets a ready draft so Vera can Approve & email
+    after she checkmarks the eye items — previously only READY_FOR_APPROVAL got a body,
+    which left Approve permanently disabled.
+    """
     from app.models import Outcome
 
     if audit.outcome == Outcome.SEND_BACK:
@@ -106,7 +111,7 @@ def attach_drafts(audit: AuditReport, *, applicant_first_name: str = "Applicant"
             draft.channel = "email"  # type: ignore[assignment]
             audit.drafts = [draft]
         return audit
-    if audit.outcome == Outcome.READY_FOR_APPROVAL:
+    if audit.outcome in (Outcome.READY_FOR_APPROVAL, Outcome.NEEDS_GLORIA):
         audit.drafts = [draft_ready(audit, applicant_first_name=applicant_first_name)]
     return audit
 

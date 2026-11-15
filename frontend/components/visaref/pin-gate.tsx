@@ -152,17 +152,17 @@ export default function PinGate({ children }: { children: React.ReactNode }) {
           >
             <div className="mb-5 flex items-center gap-2.5">
               <Image
-                src="/visaref-mark.svg"
-                alt=""
-                width={28}
-                height={28}
-                className="size-7 rounded-[6px]"
+                src="/vera.jpg"
+                alt="Vera"
+                width={36}
+                height={36}
+                className="size-9 rounded-full object-cover ring-1 ring-neutral-900/10"
                 priority
               />
               <div>
-                <p className="text-[14px]/[16px] font-[450]">VisaRef</p>
+                <p className="text-[14px]/[16px] font-[450]">Vera</p>
                 <p className="mt-1 text-[12px]/[16px] text-neutral-900/60 dark:text-neutral-100/60">
-                  Gloria desk
+                  Officer desk
                 </p>
               </div>
             </div>

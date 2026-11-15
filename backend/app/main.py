@@ -191,12 +191,12 @@ def get_application_file_page(application_id: str, filename: str, page: int = 1)
 class ConfirmTokenBody(BaseModel):
     application_id: str
     action: str = Field(..., description="approve | send_back | review")
-    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+    officer: str = Field(default="Vera", min_length=1, max_length=80)
 
 
 class GloriaActionBody(BaseModel):
     action: str = Field(..., description="approve | send_back | review")
-    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+    officer: str = Field(default="Vera", min_length=1, max_length=80)
     confirm_token: str = Field(..., min_length=8)
     draft_id: str | None = None
     to_email: str | None = Field(
@@ -211,7 +211,7 @@ class GloriaActionBody(BaseModel):
 
 class OfficerAuthBody(BaseModel):
     pin: str = Field(..., min_length=1, max_length=32)
-    officer: str = Field(default="Gloria", min_length=1, max_length=80)
+    officer: str = Field(default="Vera", min_length=1, max_length=80)
 
 
 @app.post("/auth/officer")
@@ -288,13 +288,13 @@ def redact_applicant_data(
     try:
         result = redact_application(
             application_id,
-            officer="Gloria",
+            officer="Vera",
             settings=get_settings(),
         )
     except FileNotFoundError as exc:
         raise HTTPException(404, "application not found") from exc
     append_audit_log(
-        officer="Gloria",
+        officer="Vera",
         action="redact_sensitive_data",
         application_id=application_id,
         settings=get_settings(),
@@ -318,7 +318,7 @@ def create_confirm_token(body: ConfirmTokenBody) -> dict:
     row = issue_confirm_token(
         application_id=body.application_id,
         action=action,
-        officer=body.officer.strip() or "Gloria",
+        officer=body.officer.strip() or "Vera",
     )
     return {
         "token": row.token,
@@ -338,7 +338,7 @@ def gloria_action(
         load_meta(application_id)
     except FileNotFoundError as exc:
         raise HTTPException(404, "application not found") from exc
-    officer = body.officer.strip() or "Gloria"
+    officer = body.officer.strip() or "Vera"
     action = body.action.lower().strip()
     try:
         if action == "approve":

@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     retention_days_after_decision: int = 7
     retention_days_idle: int = 30
     file_encryption_key: str = ""
-    officer_name: str = "Gloria"
+    officer_name: str = "Vera"
     officer_pin: str = ""
     session_secret: str = ""
     checklist_dir: Path = Field(default=_REPO_ROOT / "checklists")

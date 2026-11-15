@@ -101,7 +101,7 @@ def _approve_application(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
     body_override: str | None = None,
@@ -166,7 +166,7 @@ def _send_draft(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
     body_override: str | None = None,
@@ -236,7 +236,7 @@ def _mark_review(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
@@ -303,7 +303,7 @@ def approve_application(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
     settings: Settings | None = None,
@@ -327,7 +327,7 @@ def send_draft(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
     settings: Settings | None = None,
@@ -351,7 +351,7 @@ def mark_review(
     application_id: str,
     *,
     confirm_token: str,
-    officer: str = "Gloria",
+    officer: str = "Vera",
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Traced human-lock action (events appended to execution_trace.json)."""

@@ -23,9 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VisaRef · Gloria desk",
+  title: "Vera desk",
   description: "Human-in-the-loop visa file review for TLS Beirut",
-  icons: { icon: "/visaref-mark.svg" },
+  icons: { icon: "/vera.jpg" },
 };
 
 export default function RootLayout({
