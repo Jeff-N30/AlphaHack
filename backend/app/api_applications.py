@@ -100,13 +100,20 @@ def _applicant_summary(
     report: dict[str, Any] | None,
     meta: dict[str, Any] | None = None,
 ) -> dict[str, str | None]:
-    """Best-effort name + trip line for Gloria's queue (never invents)."""
+    """Best-effort name + trip line for Gloria's queue (never invents).
+
+    Edge demos set meta.demo_label (e.g. \"EDGE 01 · MRZ checksum\") so the
+    queue never shows a second JEFF NADER when the supporting pack is reused.
+    """
+    demo_label = None
+    if meta and meta.get("demo_label"):
+        demo_label = str(meta["demo_label"]).strip() or None
     if meta and meta.get("triage_person_name"):
         triage_name = str(meta["triage_person_name"]).strip() or None
     else:
         triage_name = None
     if not report:
-        return {"name": triage_name, "trip": None}
+        return {"name": demo_label or triage_name, "trip": None}
     docs = ((report.get("llama_extract") or {}).get("docs") or {})
     form = docs.get("application_form") or {}
     flight = docs.get("flight_booking") or {}
@@ -192,4 +199,4 @@ def _applicant_summary(
                 if p
             )
 
-    return {"name": name, "trip": trip}
+    return {"name": demo_label or name, "trip": trip}

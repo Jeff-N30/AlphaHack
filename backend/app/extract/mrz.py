@@ -71,7 +71,9 @@ def _parse_names_from_line1(line1: str) -> tuple[str, str]:
     body = line1[5:44] if len(line1) >= 5 else line1
     if "<<" in body:
         sur, _, rest = body.partition("<<")
-        given = rest.split("<")[0]
+        # BARK<<<JOE → after dropping OCR-K we get BAR<<<JOE; strip extra <
+        rest = rest.lstrip("<")
+        given = rest.split("<")[0] if rest else ""
     else:
         parts = [p for p in body.split("<") if p]
         sur = parts[0] if parts else ""
@@ -79,16 +81,29 @@ def _parse_names_from_line1(line1: str) -> tuple[str, str]:
     return sur.replace("<", " ").strip(), given.replace("<", " ").strip()
 
 
+def _clean_mrz_name_parts(s: str) -> str:
+    """Drop OCR filler tokens the mrz lib treats as given-name parts (SSS, SKKKK)."""
+    toks = [t for t in re.split(r"\s+", (s or "").replace("<", " ").strip()) if t]
+    toks = [t for t in toks if not re.fullmatch(r"[SKE0-9]+", t)]
+    return " ".join(toks)
+
+
 def _fix_line1_filler_k(line1: str) -> str:
     """OCR often reads MRZ filler '<' as 'K' (sometimes 'S'/'E') in the name zone.
 
     Examples:
-      NADERK<JEFF   → NADER<<JEFF   (replace glued K with <)
-      NASSARK<<KARIM → NASSAR<<KARIM (drop glued K before existing <<)
+      NADERK<JEFF   → NADER<<JEFF   (single '<' is a broken separator: K was '<')
+      JOE<SSS<SKKKK  → JOE<<<<<<<<<<< (filler runs after the given name)
+    A K glued before a proper '<<' is a real letter (BARK<<JOE, MALEK<<, TARIK<<).
     Never eat a real K that starts a given name (EL<KHOURY).
     Never strip S — GEORGES<< must stay GEORGES.
     """
     chars: list[str | None] = list(_normalize_line(line1))
+    # TD3 name zone is A–Z and '<' only — digits are OCR junk
+    for i in range(5, 44):
+        ch = chars[i]
+        if isinstance(ch, str) and ch.isdigit():
+            chars[i] = "<"
     for i in range(5, 44):  # after P< + nationality
         ch = chars[i]
         if ch not in "KSE":
@@ -101,18 +116,29 @@ def _fix_line1_filler_k(line1: str) -> str:
         if right is None:
             right = "<"
         if ch == "K" and isinstance(left, str) and left.isalpha() and right == "<":
-            # already have << after the K → delete K; else K is a misread <
-            if i + 2 < 44 and chars[i + 2] == "<":
-                chars[i] = None
-            else:
+            after = chars[i + 2] if i + 2 < 44 else "<"
+            if isinstance(after, str) and after.isalpha():
                 chars[i] = "<"
-        elif left in "<KSE" and right in "<KSE":
+        elif ch == "K" and left in "<SE" and right in "<KSE":
+            chars[i] = "<"
+        elif ch in "SE" and left == "<" and right in "<KSE":
+            # Only after an existing '<' — never eat GEORGES (S after E stays).
             chars[i] = "<"
         elif i == 43 and left in "<KSE":
             chars[i] = "<"
     out = "".join(c for c in chars if c is not None)
-    return out[:44].ljust(44, "<")
-
+    out = out[:44].ljust(44, "<")
+    # After surname<<given, remaining S/K/E runs are filler (JOE<SSS<SKKKK)
+    body = out[5:]
+    if "<<" in body:
+        head, sep, rest = body.partition("<<")
+        rest = rest.lstrip("<")
+        if rest:
+            given, _, tail = rest.partition("<")
+            if given and re.search(r"[SKE]", tail):
+                cleaned = ("P<" + out[2:5] + head + sep + given).ljust(44, "<")
+                return cleaned[:44]
+    return out
 
 def _line1_ocr_variants(line1: str) -> list[str]:
     """Raw line1 plus filler-K fixes. Prefer the fixed form first."""
@@ -143,7 +169,8 @@ def _name_candidates(names: str) -> list[str]:
 
     stripped = [strip_trailing_k(t) for t in toks]
     out: list[str] = []
-    for variant in (stripped, toks):
+    # As-read first: BARK / MALEK are real names; stripped is only a fallback
+    for variant in (toks, stripped):
         s = " ".join(variant)
         if s and s not in out:
             out.append(s)
@@ -206,7 +233,9 @@ def parse_td3(
     """Parse two TD3 lines with the `mrz` library; list failed ICAO checks."""
     if len(lines) < 2:
         raise ValueError("TD3 MRZ requires 2 lines")
-    l1, l2 = _normalize_line(lines[0]), _normalize_line(lines[1])
+    # Clean filler OCR before the mrz lib sees JOE<SSS<SKKKK as extra given names
+    l1 = _fix_line1_filler_k(lines[0])
+    l2 = _normalize_line(lines[1])
     code = f"{l1}\n{l2}"
     surname, given = _parse_names_from_line1(l1)
 
@@ -235,8 +264,15 @@ def parse_td3(
 
     sur = (fields.surname or "") if fields.surname not in (None, "None") else ""
     giv = (fields.name or "") if fields.name not in (None, "None") else ""
+    sur = _clean_mrz_name_parts(sur)
+    giv = _clean_mrz_name_parts(giv)
+    # Prefer our filler-cleaned parse when the lib still keeps junk tokens
     if not sur and not giv:
         sur, giv = surname, given
+    elif (not giv and given) or (
+        giv and given and len(giv.split()) > len(given.split())
+    ):
+        sur, giv = surname or sur, given or giv
 
     sex_raw = (fields.sex or l2[_SEX] or "<")[:1]
     sex = sex_raw if sex_raw in ("M", "F", "<") else "<"
@@ -250,8 +286,8 @@ def parse_td3(
         return MRZ(
             line1=l1,
             line2=l2,
-            surname=sur.replace("<", " ").strip(),
-            given_names=giv.replace("<", " ").strip(),
+            surname=sur.replace("<", " ").strip() or surname,
+            given_names=giv.replace("<", " ").strip() or given,
             passport_number=(fields.document_number or l2[_DOC_NUM]).replace("<", ""),
             nationality=(fields.nationality or l2[10:13]).replace("<", ""),
             date_of_birth=date(1900, 1, 1),
@@ -264,8 +300,8 @@ def parse_td3(
     return MRZ(
         line1=l1,
         line2=l2,
-        surname=sur.replace("<", " ").strip(),
-        given_names=giv.replace("<", " ").strip(),
+        surname=(sur.replace("<", " ").strip() or surname),
+        given_names=(giv.replace("<", " ").strip() or given),
         passport_number=(fields.document_number or l2[_DOC_NUM]).replace("<", ""),
         nationality=(fields.nationality or l2[10:13]).replace("<", ""),
         date_of_birth=dob,
@@ -275,24 +311,19 @@ def parse_td3(
         failed_checks=failed,
     )
 
-
 def _name_quality(mrz: MRZ) -> int:
-    """Lower is better. Prefer <<, no trailing OCR-K, longer clean given (GEORGES > GEORGE)."""
+    """Lower is better. Prefer <<, a present given name, longer given (GEORGES > GEORGE).
+
+    No trailing-K penalty: BARK / MALEK / TARIK are real names. Glued filler-K
+    (NADERK<JEFF) is already fixed in `_fix_line1_filler_k`, whose line is tried first.
+    """
     score = 0
     if "<<" not in (mrz.line1 or ""):
         score += 5
-    sur = (mrz.surname or "").replace(" ", "")
     giv = (mrz.given_names or "").replace(" ", "")
-    # Trailing K is usually a misread '<' — prefer NADER/KARIM over NADERK/KARIMK
-    if len(sur) > 3 and sur.endswith("K"):
-        score += 4
-    if len(giv) > 3 and giv.endswith("K"):
-        score += 4
     if not giv:
         score += 2
-    # Longer given wins GEORGES vs GEORGE; ignore trailing-K length inflation
-    giv_score = giv[:-1] if len(giv) > 3 and giv.endswith("K") else giv
-    score -= len(giv_score)
+    score -= len(giv)
     return score
 
 

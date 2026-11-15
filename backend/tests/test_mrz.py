@@ -131,3 +131,55 @@ def test_line1_filler_k_not_confused_with_letter() -> None:
     assert mrz.surname == "NADER"
     assert mrz.given_names == "JEFF"
     assert mrz.passport_number == "LR4116483"
+
+
+def test_line1_filler_drops_sss_skkkk_given_junk() -> None:
+    """passporteye often turns trailing '<<<' into SSS / SKKKK given-name parts."""
+    from app.extract.mrz import _fix_line1_filler_k, _parse_names_from_line1
+
+    raw = "P<LBNBAR<<JOE<SSS<SKKKK<<<<<<<<<<<<<<<<<<<<<"
+    fixed = _fix_line1_filler_k(raw)
+    assert fixed.startswith("P<LBNBAR<<JOE")
+    assert "SSS" not in fixed and "SKKKK" not in fixed
+    assert _parse_names_from_line1(fixed) == ("BAR", "JOE")
+
+    mrz = parse_td3(
+        [raw, "LR41164833LBN0208144M35061561002339074<<<<12"],
+        today=_TODAY,
+    )
+    assert mrz.surname == "BAR"
+    assert mrz.given_names == "JOE"
+    assert "SSS" not in mrz.given_names
+    assert "SKKKK" not in mrz.given_names
+
+
+def test_parse_names_triple_chevron_after_surname() -> None:
+    """Deleting OCR-K from BARK<<<JOE must still yield given=JOE."""
+    from app.extract.mrz import _fix_line1_filler_k, _parse_names_from_line1
+
+    fixed = _fix_line1_filler_k("P<LBNBARK<<<JOE<<<<<<<<<<S<SS595KKKKK<K<K<<<<")
+    assert _parse_names_from_line1(fixed) == ("BARK", "JOE")
+
+
+def test_real_trailing_k_surname_kept() -> None:
+    """K before a proper '<<' is a real letter — BARK / MALEK must not lose it."""
+    from app.extract.mrz import _fix_line1_filler_k, _parse_names_from_line1
+
+    for raw, want in [
+        ("P<LBNBARK<<<JOE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", ("BARK", "JOE")),
+        ("P<LBNMALEK<<RAMI<<<<<<<<<<<<<<<<<<<<<<<<<<<<", ("MALEK", "RAMI")),
+    ]:
+        assert _parse_names_from_line1(_fix_line1_filler_k(raw)) == want
+
+
+def test_filler_fix_keeps_georges() -> None:
+    """Trailing S in GEORGES must never be treated as filler '<'."""
+    from app.extract.mrz import _fix_line1_filler_k
+
+    raw = "P<LBNHADDAD<<GEORGES<<<<<<<<<<<<<<<<<<<<<<<<"
+    assert _fix_line1_filler_k(raw) == raw
+    mrz = parse_td3(
+        [raw, "LR41164833LBN8501014M35061561002339074<<<<54"],
+        today=_TODAY,
+    )
+    assert mrz.given_names == "GEORGES"

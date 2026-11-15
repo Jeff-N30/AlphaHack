@@ -139,9 +139,14 @@ def send_draft(
     officer: str = "Gloria",
     draft_id: str | None = None,
     to_email: str | None = None,
+    body_override: str | None = None,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
-    """Mark send-back + SMTP the draft to the correspondent."""
+    """Mark send-back + SMTP the draft to the correspondent.
+
+    body_override: when Gloria fails a look-item on an otherwise-clean file,
+    the desk sends her composed send-back text (still audited via sha256).
+    """
     settings = settings or get_settings()
     try:
         consume_confirm_token(
@@ -151,6 +156,11 @@ def send_draft(
         raise LockError(str(exc), status_code=409 if exc.conflict else 400) from exc
 
     draft, report_path, report = _load_draft(application_id, draft_id, settings)
+    override = (body_override or "").strip()
+    if override:
+        draft["body"] = override
+        # Officer-authored look rejects — not auto rule ids
+        draft["rule_ids"] = list(draft.get("rule_ids") or []) + ["HUMAN.LOOK_REJECT"]
     body = draft.get("body") or ""
     if not body.strip():
         raise LockError("no draft body to email the applicant")

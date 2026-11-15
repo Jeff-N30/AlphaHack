@@ -97,6 +97,64 @@ def test_name_thresholds_85_70() -> None:
     assert score3 < 70
 
 
+def test_name_match_refuses_invalid_mrz() -> None:
+    """Failed MRZ checksums must not drive a FAIL against pack names (no OCR junk)."""
+    from app.models import MRZ
+    from app.rules.checks.identity import name_consistency
+
+    mrz = MRZ(
+        line1="P<LBNBAR<<JOE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+        line2="LR41164833LBN0208144M35061561002339074<<<<12",
+        surname="BAR",
+        given_names="JOE SSS SKKKK",
+        passport_number="LR4116483",
+        nationality="LBN",
+        date_of_birth=date(2002, 8, 14),
+        sex="M",
+        expiry_date=date(2035, 6, 15),
+        checksums_valid=False,
+        failed_checks=["final hash"],
+    )
+    facts = Facts(
+        documents={
+            DocType.passport: [
+                PassportExtraction(
+                    surname="BAR",
+                    given_names="JOE SSS SKKKK",
+                    nationality="LBN",
+                    passport_number="LR4116483",
+                    date_of_birth=date(2002, 8, 14),
+                    sex="M",
+                    issue_date=date(2015, 6, 15),
+                    expiry_date=date(2035, 6, 15),
+                    mrz=mrz,
+                )
+            ],
+            DocType.flight_booking: [
+                FlightBookingExtraction(
+                    passenger_names=["Jeff Nader"],
+                    segments=[
+                        FlightSegment(
+                            from_airport="BEY",
+                            to_airport="CDG",
+                            departure_date=date(2026, 12, 1),
+                        ),
+                    ],
+                )
+            ],
+        }
+    )
+    r = name_consistency(
+        facts,
+        {"compare": ["flight_booking"], "variant_threshold": 85, "fail_below": 70},
+        _ctx(),
+    )
+    assert r.status == Status.NEEDS_HUMAN
+    assert "MRZ" in (r.message or "")
+    assert "SSS" not in (r.message or "")
+    assert "Jeff" not in (r.message or "")
+
+
 def test_bank_window_exactly_6_months() -> None:
     facts = Facts(
         documents={

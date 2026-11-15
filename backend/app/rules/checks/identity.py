@@ -10,13 +10,21 @@ from app.rules.registry import register
 
 
 def _mrz_reference(facts: Facts) -> str | None:
+    """Passport identity for name checks comes only from a checksum-valid MRZ.
+
+    Failed checksums → refuse the OCR name (no silent fallback to viz/LLM fields).
+    """
     pp = facts.first(DocType.passport)
     if pp is None:
         return None
     mrz = getattr(pp, "mrz", None)
-    if mrz is not None and mrz.checksums_valid:
-        return f"{mrz.surname} {mrz.given_names}"
-    return f"{pp.surname} {pp.given_names}"
+    if mrz is not None:
+        if not mrz.checksums_valid:
+            return None
+        name = f"{mrz.surname or ''} {mrz.given_names or ''}".strip()
+        return name or None
+    name = f"{getattr(pp, 'surname', '') or ''} {getattr(pp, 'given_names', '') or ''}".strip()
+    return name or None
 
 
 def _names_on_doc(doc: Any, dtype: DocType) -> list[str]:
@@ -53,6 +61,14 @@ def _doc_label(dtype: DocType) -> str:
 def name_consistency(facts: Facts, params: dict[str, Any], ctx: RuleContext):
     ref = _mrz_reference(facts)
     if not ref:
+        pp = facts.first(DocType.passport)
+        mrz = getattr(pp, "mrz", None) if pp is not None else None
+        if mrz is not None and not mrz.checksums_valid:
+            return needs_human(
+                "ID.NAME_MATCH",
+                "Passport MRZ check digits failed — can’t trust the name until the MRZ is readable",
+                evidence=[ev("passport", "mrz", "checksums_invalid")],
+            )
         return needs_human("ID.NAME_MATCH", "Couldn’t read a name from the passport.")
     variant = int(params.get("variant_threshold", 85))
     fail_below = int(params.get("fail_below", 70))

@@ -1106,7 +1106,10 @@ function ApprovalPanel({
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [previewTick, setPreviewTick] = useState(0);
   const [docsFlash, setDocsFlash] = useState(false);
-  const [confirmedIds, setConfirmedIds] = useState<Record<string, boolean>>({});
+  /** Look-item verdict: ok = Gloria accepts, fail = human verification failed → send back */
+  const [lookVerdict, setLookVerdict] = useState<
+    Record<string, "ok" | "fail" | undefined>
+  >({});
   const [toEmail, setToEmail] = useState("");
   const docsRef = useRef<HTMLElement | null>(null);
   const previewFile = previewFiles[0] ?? null;
@@ -1120,16 +1123,43 @@ function ApprovalPanel({
   const youCheckIds = issues.youCheck.map(
     (r, i) => String(r.rule_id ?? r.id ?? `you-${i}`),
   );
+  const rejectedLooks = issues.youCheck.filter((r, i) => {
+    const id = String(r.rule_id ?? r.id ?? `you-${i}`);
+    return lookVerdict[id] === "fail";
+  });
+  const humanLookFailed = rejectedLooks.length > 0;
   const allYouConfirmed =
     youCheckIds.length === 0 ||
-    youCheckIds.every((id) => confirmedIds[id]);
+    youCheckIds.every((id) => lookVerdict[id] === "ok");
   const emailOk = /[\w.+-]+@[\w.-]+\.\w+/.test(toEmail.trim());
-  const canApprove = !hasErrors && allYouConfirmed && emailOk && Boolean(draft?.body);
-  const canSendEmail = emailOk && Boolean(draft?.body);
+  // Code FAILs or Gloria marked a look-item Not OK → send-back path
+  const showSendBack = hasErrors || humanLookFailed;
+  const lookRejectBody =
+    humanLookFailed && !hasErrors
+      ? [
+          "Hello,",
+          "",
+          "We reviewed your visa file and need the following before we can continue:",
+          "",
+          ...rejectedLooks.map((r, i) => {
+            const copy = ruleCopy(r.rule_id ?? r.id);
+            return `${i + 1}. ${copy.title} — ${issuePlain(r)}`;
+          }),
+          "",
+          "Thank you,",
+          "Gloria – VisaRef Agency",
+        ].join("\n")
+      : null;
+  const displayDraftBody = lookRejectBody || draft?.body || "";
+  // Approve = no code FAILs + every look-item OK (ack only — not auto validation).
+  // Send-back = code FAILs (ticks optional) OR Gloria failed a look-item.
+  const canApprove =
+    !showSendBack && allYouConfirmed && emailOk && Boolean(draft?.body);
+  const canSendEmail = emailOk && Boolean(displayDraftBody.trim());
   const draftIsReady =
     Boolean(draft?.body) &&
     (!draft?.rule_ids || draft.rule_ids.length === 0) &&
-    !hasErrors;
+    !showSendBack;
 
   const actionMut = useMutation({
     mutationFn: (action: "approve" | "send_back" | "review") =>
@@ -1139,6 +1169,7 @@ function ApprovalPanel({
         "Gloria",
         draft?.id,
         action === "review" ? undefined : toEmail.trim(),
+        action === "send_back" ? lookRejectBody || undefined : undefined,
       ),
     onSuccess: (data, action) => {
       const delivery = data.delivery;
@@ -1163,7 +1194,7 @@ function ApprovalPanel({
   });
 
   useEffect(() => {
-    setConfirmedIds({});
+    setLookVerdict({});
   }, [applicationId]);
 
   useEffect(() => {
@@ -1448,10 +1479,13 @@ function ApprovalPanel({
                     {issues.youCheck.length > 0 ? (
                       <div>
                         <p className={groupHead}>
-                          You confirm
+                          {hasErrors ? "Also look" : "Look with your eye"}
                           <span className={groupCount}>
-                          {youCheckIds.filter((id) => confirmedIds[id]).length}/
-                          {issues.youCheck.length}
+                            {
+                              youCheckIds.filter((id) => Boolean(lookVerdict[id]))
+                                .length
+                            }
+                            /{issues.youCheck.length}
                           </span>
                         </p>
                         <ul>
@@ -1459,11 +1493,11 @@ function ApprovalPanel({
                             const id = String(r.rule_id ?? r.id ?? `you-${i}`);
                             const copy = ruleCopy(r.rule_id ?? r.id);
                             const linked = filesForIssue(files, r);
-                            const checked = Boolean(confirmedIds[id]);
-                            const toggleConfirm = () => {
-                              setConfirmedIds((prev) => ({
+                            const verdict = lookVerdict[id];
+                            const setVerdict = (v: "ok" | "fail") => {
+                              setLookVerdict((prev) => ({
                                 ...prev,
-                                [id]: !prev[id],
+                                [id]: prev[id] === v ? undefined : v,
                               }));
                               if (linked.length) openDocs(linked);
                             };
@@ -1472,58 +1506,72 @@ function ApprovalPanel({
                                 <div
                                   className={cx(
                                     checkRow,
-                                    "transition-colors duration-[120ms] hover:bg-[rgb(25_33_35/0.03)] dark:hover:bg-neutral-100/[0.04]",
-                                    checked && "[&>button:last-of-type]:opacity-50",
+                                    "items-center transition-colors duration-[120ms] hover:bg-[rgb(25_33_35/0.025)] dark:hover:bg-neutral-100/[0.03]",
                                   )}
                                 >
-                                  {/* Real button — never sr-only checkbox (focus scrolls the list away) */}
-                                  <button
-                                    type="button"
-                                    role="checkbox"
-                                    aria-checked={checked}
-                                    aria-label={
-                                      checked
-                                        ? `Unconfirm ${copy.title}`
-                                        : `Confirm ${copy.title}`
-                                    }
-                                    onClick={toggleConfirm}
-                                    className={cx(
-                                      "mt-px flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-[4px] border transition-colors",
-                                      checked
-                                        ? "border-[#192123] bg-[#192123] text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
-                                        : "border-[rgb(25_33_35/0.22)] bg-white hover:border-[rgb(25_33_35/0.45)] dark:border-neutral-100/30 dark:bg-neutral-900",
-                                      focusRingInset,
-                                    )}
-                                  >
-                                    {checked ? (
-                                      <HugeiconsIcon icon={Tick02Icon} size={10} />
-                                    ) : null}
-                                  </button>
                                   <button
                                     type="button"
                                     disabled={!linked.length}
                                     onClick={() => openDocs(linked)}
                                     className={cx(
-                                      "min-w-0 flex-1 text-left transition-opacity duration-[120ms]",
+                                      "min-w-0 flex-1 text-left",
                                       linked.length
                                         ? cx(transition, "cursor-pointer")
                                         : "cursor-default",
+                                      verdict === "fail" && "opacity-80",
                                     )}
                                   >
                                     <span className={cx(typeRowTitle, text1, "block")}>
                                       {copy.title}
                                     </span>
-                                    <span
+                                    <span className={checkHint}>{issuePlain(r)}</span>
+                                  </button>
+                                  <div
+                                    role="group"
+                                    aria-label={`${copy.title} verdict`}
+                                    className="inline-flex h-7 shrink-0 overflow-hidden rounded-[5px] border border-[rgb(25_33_35/0.12)] dark:border-neutral-100/16"
+                                  >
+                                    <button
+                                      type="button"
+                                      aria-pressed={verdict === "ok"}
+                                      aria-label={`Accept ${copy.title}`}
+                                      title="Looks fine"
+                                      onClick={() => setVerdict("ok")}
                                       className={cx(
-                                        checkHint,
+                                        "flex w-7 cursor-pointer items-center justify-center border-r border-[rgb(25_33_35/0.12)] transition-colors duration-[120ms] dark:border-neutral-100/16",
+                                        focusRingInset,
+                                        verdict === "ok"
+                                          ? "bg-[#2f6b4a] text-white"
+                                          : "bg-white text-[#2f6b4a] hover:bg-[rgb(47_107_74/0.08)] dark:bg-neutral-950 dark:hover:bg-[rgb(47_107_74/0.18)]",
                                       )}
                                     >
-                                      {issuePlain(r)}
-                                    </span>
-                                  </button>
-                                  <span className="sr-only">
-                                    {checked ? "OK" : "Check"}
-                                  </span>
+                                      <HugeiconsIcon
+                                        icon={Tick02Icon}
+                                        size={12}
+                                        strokeWidth={2}
+                                      />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      aria-pressed={verdict === "fail"}
+                                      aria-label={`Reject ${copy.title} — send back`}
+                                      title="Not fine — send back"
+                                      onClick={() => setVerdict("fail")}
+                                      className={cx(
+                                        "flex w-7 cursor-pointer items-center justify-center transition-colors duration-[120ms]",
+                                        focusRingInset,
+                                        verdict === "fail"
+                                          ? "bg-[#9b3d3d] text-white"
+                                          : "bg-white text-[#9b3d3d] hover:bg-[rgb(155_61_61/0.08)] dark:bg-neutral-950 dark:hover:bg-[rgb(155_61_61/0.18)]",
+                                      )}
+                                    >
+                                      <HugeiconsIcon
+                                        icon={Cancel01Icon}
+                                        size={11}
+                                        strokeWidth={2}
+                                      />
+                                    </button>
+                                  </div>
                                 </div>
                               </li>
                             );
@@ -1605,7 +1653,7 @@ function ApprovalPanel({
                     >
                       Flag
                     </button>
-                    {hasErrors ? (
+                    {showSendBack ? (
                       <button
                         type="button"
                         className={cx(primaryButton, buttonSm, "h-9 px-3.5")}
@@ -1652,10 +1700,16 @@ function ApprovalPanel({
                       Enter the correspondent email — the button sends SMTP from your Gmail
                     </p>
                   ) : null}
-                  {!hasErrors && !allYouConfirmed ? (
+                  {humanLookFailed ? (
+                    <p className={cx(typeCaption, "flex items-start gap-2 text-[#737c7f] dark:text-neutral-100/55")}>
+                      <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[oklch(51%_0.18_26)]" />
+                      You marked look-item(s) Not OK — Send email asks the applicant to fix
+                    </p>
+                  ) : null}
+                  {!showSendBack && !allYouConfirmed ? (
                     <p className={cx(typeCaption, "flex items-start gap-2 text-[#737c7f] dark:text-neutral-100/55")}>
                       <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[oklch(72%_0.15_70)]" />
-                      Tick every “You confirm” item before approving
+                      Tap ✓ on each look-item to Approve, or ✕ to send back
                     </p>
                   ) : null}
                 </div>
@@ -1668,7 +1722,7 @@ function ApprovalPanel({
               )}
             </section>
 
-            {draft?.body ? (
+            {displayDraftBody ? (
               <section
                 id="applicant-draft"
                 className={cx(hairT, "flex shrink-0 flex-col bg-white dark:bg-neutral-950")}
@@ -1679,10 +1733,12 @@ function ApprovalPanel({
                   <span className={cx(paneTitle, "flex-1")}>
                     {draftIsReady
                       ? "Ready-for-TLS message"
-                      : "Send-back message"}
+                      : humanLookFailed && !hasErrors
+                        ? "Send-back (your look rejects)"
+                        : "Send-back message"}
                   </span>
                   <span className={cx(tag, tagOk, "uppercase tracking-[0.04em]")}>
-                    {draft.status || "DRAFT"}
+                    {draft?.status || "DRAFT"}
                   </span>
                 </div>
                 <div className="mx-6 mb-6 flex min-w-0 flex-col rounded-[8px] border border-[rgb(25_33_35/0.08)] px-5 pt-5 pb-4 dark:border-neutral-100/8">
@@ -1693,7 +1749,7 @@ function ApprovalPanel({
                       "whitespace-pre-wrap font-sans",
                     )}
                   >
-                    {draft.body}
+                    {displayDraftBody}
                   </pre>
                   <p className={cx(typeCaption, text3, hairT, "mt-4 pt-3")}>
                     {emailOk

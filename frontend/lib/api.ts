@@ -142,6 +142,7 @@ export async function postGloriaAction(
   officer = "Gloria",
   draftId?: string,
   toEmail?: string,
+  bodyOverride?: string,
 ) {
   const { token } = await postConfirmToken(id, action, officer);
   return request<{
@@ -156,6 +157,7 @@ export async function postGloriaAction(
       confirm_token: token,
       draft_id: draftId,
       to_email: toEmail || undefined,
+      body_override: bodyOverride || undefined,
     }),
   });
 }
