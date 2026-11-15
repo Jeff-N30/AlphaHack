@@ -172,6 +172,16 @@ def test_real_trailing_k_surname_kept() -> None:
         assert _parse_names_from_line1(_fix_line1_filler_k(raw)) == want
 
 
+def test_double_trailing_k_ocr_stripped_in_variants() -> None:
+    """NASSARK<<KARIMK is filler on both sides — emit NASSAR<<KARIM variant."""
+    from app.extract.mrz import _line1_ocr_variants
+
+    variants = _line1_ocr_variants("P<LBNNASSARK<<KARIMK<<<<<<<<<<<<<<<<<<<<<<<<")
+    assert any(v.startswith("P<LBNNASSAR<<KARIM<") for v in variants)
+    bark = _line1_ocr_variants("P<LBNBARK<<JOE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+    assert all("BAR<<" not in v or "BARK<<" in v for v in bark)
+    assert any("BARK<<" in v for v in bark)
+
 def test_filler_fix_keeps_georges() -> None:
     """Trailing S in GEORGES must never be treated as filler '<'."""
     from app.extract.mrz import _fix_line1_filler_k
