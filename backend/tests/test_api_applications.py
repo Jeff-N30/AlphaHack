@@ -83,6 +83,46 @@ def test_resolve_application_file(tmp_path: Path) -> None:
     assert path.name == "bank_statement.pdf"
 
 
+def test_employee_sender_is_not_used_as_applicant_email(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        checklist_dir=Path(__file__).resolve().parents[2] / "checklists",
+        email_imap_user="jeffnader30@gmail.com",
+    )
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    meta["email_sender"] = "Jeff Nader <jeffnader30@gmail.com>"
+    save_meta(meta, settings)
+
+    row = next(r for r in list_applications(settings) if r["id"] == meta["id"])
+    detail = get_application_detail(meta["id"], settings)
+
+    assert row["applicant_email"] is None
+    assert detail["meta"]["applicant_email"] is None
+
+
+def test_sender_address_is_used_as_applicant_email(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        checklist_dir=Path(__file__).resolve().parents[2] / "checklists",
+        email_imap_user="jeffnader30@gmail.com",
+    )
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    meta["email_sender"] = "Jason Boulos <jason.boulos1990@gmail.com>"
+    save_meta(meta, settings)
+
+    detail = get_application_detail(meta["id"], settings)
+
+    assert detail["meta"]["applicant_email"] == "jason.boulos1990@gmail.com"
+
+
 def test_redact_keeps_approved_record_and_removes_sensitive_data(tmp_path: Path) -> None:
     settings = Settings(
         data_dir=tmp_path,

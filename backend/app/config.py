@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     # Outbound (Gloria confirm only) — defaults to Gmail SMTP with same app password
     email_smtp_host: str = "smtp.gmail.com"
     email_smtp_port: int = 587
+    email_smtp_user: str = ""
     demo_applicant_email: str = ""
 
     @field_validator("data_dir", "checklist_dir", mode="before")

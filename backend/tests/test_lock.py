@@ -160,10 +160,16 @@ def test_approve_sends_ready_draft(tmp_path: Path, monkeypatch) -> None:
     )
     tok = issue_confirm_token(application_id=meta["id"], action="approve")
     out = approve_application(
-        meta["id"], confirm_token=tok.token, officer="Gloria", draft_id="ready1", settings=settings
+        meta["id"],
+        confirm_token=tok.token,
+        officer="Gloria",
+        draft_id="ready1",
+        body_override="Your file looks complete.\n\nTravel History\nPlease be prepared to explain prior travel.",
+        settings=settings,
     )
     assert out["meta"]["status"] == "approved_by_gloria"
     assert out["draft"]["status"] == "SENT"
+    assert "Travel History" in out["draft"]["body"]
     assert out["delivery"]["channel"] == "email"
     assert out["delivery"]["to"] == "karim@example.com"
 

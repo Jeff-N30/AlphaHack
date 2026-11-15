@@ -92,6 +92,7 @@ def approve_application(
     officer: str = "Gloria",
     draft_id: str | None = None,
     to_email: str | None = None,
+    body_override: str | None = None,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
@@ -104,6 +105,9 @@ def approve_application(
 
     meta = load_meta(application_id, settings)
     draft, report_path, report = _load_draft(application_id, draft_id, settings)
+    override = (body_override or "").strip()
+    if override:
+        draft["body"] = override
     body = draft.get("body") or ""
     if not body.strip():
         raise LockError("no draft body to email the applicant")

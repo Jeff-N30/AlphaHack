@@ -351,6 +351,9 @@ const FIELD_PLAIN: Record<string, string> = {
   given_names: "given names",
 };
 
+const TRAVEL_HISTORY_NOTE =
+  "Reminder:\nTravel History\nIf you have previously traveled to Syria, Iran, Iraq, Afghanistan, North Korea, Russia, Yemen, Libya, Somalia, or Sudan, the embassy may ask about the purpose of that travel. This does not reduce your chances of approval, but it may raise questions about the purpose of that travel.";
+
 type AuditRow = {
   id?: string;
   rule_id?: string;
@@ -1111,6 +1114,7 @@ function ApprovalPanel({
   const [lookVerdict, setLookVerdict] = useState<
     Record<string, "ok" | "fail" | undefined>
   >({});
+  const [travelHistory, setTravelHistory] = useState(false);
   const [toEmail, setToEmail] = useState("");
   const docsRef = useRef<HTMLElement | null>(null);
   const previewFile = previewFiles[0] ?? null;
@@ -1151,7 +1155,15 @@ function ApprovalPanel({
           "Gloria – VisaRef Agency",
         ].join("\n")
       : null;
-  const displayDraftBody = lookRejectBody || draft?.body || "";
+  const baseDraftBody = draft?.body || lookRejectBody || "";
+  const displayDraftBody = (() => {
+    if (!travelHistory) return baseDraftBody;
+    const thankYou = baseDraftBody.lastIndexOf("\nThank you,");
+    if (thankYou >= 0) {
+      return `${baseDraftBody.slice(0, thankYou)}\n\n${TRAVEL_HISTORY_NOTE}${baseDraftBody.slice(thankYou)}`;
+    }
+    return [baseDraftBody, TRAVEL_HISTORY_NOTE].filter(Boolean).join("\n\n");
+  })();
   // Approve = no code FAILs + every look-item OK (ack only — not auto validation).
   // Send-back = code FAILs (ticks optional) OR Gloria failed a look-item.
   const canApprove =
@@ -1170,7 +1182,13 @@ function ApprovalPanel({
         "Gloria",
         draft?.id,
         action === "review" ? undefined : toEmail.trim(),
-        action === "send_back" ? lookRejectBody || undefined : undefined,
+        action === "review"
+          ? undefined
+          : travelHistory
+            ? displayDraftBody
+            : action === "send_back"
+              ? lookRejectBody || undefined
+              : undefined,
       ),
     onSuccess: (data, action) => {
       const delivery = data.delivery;
@@ -1207,16 +1225,15 @@ function ApprovalPanel({
 
   useEffect(() => {
     setLookVerdict({});
+    setTravelHistory(false);
   }, [applicationId]);
 
   useEffect(() => {
     const raw =
-      (typeof meta?.applicant_email === "string" && meta.applicant_email) ||
-      (typeof meta?.email_sender === "string" && meta.email_sender) ||
-      "";
+      typeof meta?.applicant_email === "string" ? meta.applicant_email : "";
     const m = raw.match(/[\w.+-]+@[\w.-]+\.\w+/);
     setToEmail(m ? m[0] : "");
-  }, [applicationId, meta?.applicant_email, meta?.email_sender]);
+  }, [applicationId, meta?.applicant_email]);
 
   const openDocs = useCallback(
     (names: string[] | string | null) => {
@@ -1488,16 +1505,14 @@ function ApprovalPanel({
                       </div>
                     ) : null}
 
-                    {issues.youCheck.length > 0 ? (
+                    {issues.youCheck.length > 0 || !alreadyDecided ? (
                       <div>
                         <p className={groupHead}>
                           {hasErrors ? "Also look" : "Look with your eye"}
                           <span className={groupCount}>
-                            {
-                              youCheckIds.filter((id) => Boolean(lookVerdict[id]))
-                                .length
-                            }
-                            /{issues.youCheck.length}
+                            {issues.youCheck.length > 0
+                              ? `${youCheckIds.filter((id) => Boolean(lookVerdict[id])).length}/${issues.youCheck.length}`
+                              : null}
                           </span>
                         </p>
                         <ul>
@@ -1588,6 +1603,45 @@ function ApprovalPanel({
                               </li>
                             );
                           })}
+                          {!alreadyDecided ? (
+                            <li>
+                              <div
+                                className={cx(
+                                  checkRow,
+                                  "items-start gap-3 transition-colors duration-[120ms] hover:bg-[rgb(25_33_35/0.025)] dark:hover:bg-neutral-100/[0.03]",
+                                )}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <span className={cx(typeRowTitle, text1, "block")}>
+                                    Travel History
+                                  </span>
+                                  <span className={checkHint}>
+                                    If the applicant previously traveled to Syria, Iran,
+                                    Iraq, Afghanistan, North Korea, Russia, Yemen, Libya,
+                                    Somalia, or Sudan, the embassy may ask about the
+                                    purpose of that travel.
+                                  </span>
+                                </div>
+                                <label className="inline-flex shrink-0 cursor-pointer items-center gap-2">
+                                  <span className={cx("text-[11px]/[16px]", text3)}>
+                                    Include
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={travelHistory}
+                                    onChange={(event) => setTravelHistory(event.target.checked)}
+                                    className="peer sr-only"
+                                  />
+                                  <span
+                                    aria-hidden
+                                    className="relative h-6 w-11 rounded-full border border-[rgb(25_33_35/0.16)] bg-[#e8ebeb] transition-colors duration-[160ms] peer-checked:border-[#2f6b4a] peer-checked:bg-[#2f6b4a] peer-focus-visible:ring-2 peer-focus-visible:ring-[#2f6b4a]/30 peer-checked:[&>span]:translate-x-5 dark:border-neutral-100/20 dark:bg-neutral-800"
+                                  >
+                                    <span className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-[160ms]" />
+                                  </span>
+                                </label>
+                              </div>
+                            </li>
+                          ) : null}
                         </ul>
                       </div>
                     ) : null}

@@ -43,6 +43,13 @@ the UI in separate terminal windows:
 
 Approve / Send back use a one-time confirm token + audit log. Docs open in-panel.
 
+Outbound email uses Gmail SMTP only after Gloria clicks Send or Approve. Set
+`EMAIL_SMTP_USER=jeffnader30@gmail.com` and use a Gmail App Password in
+`EMAIL_IMAP_PASSWORD`; the address entered in the desk is the applicant
+recipient. The SMTP account is never treated as the applicant; for inbox
+applications, the applicant recipient comes from the incoming message `From`
+address.
+
 The desk has a compact MVP lock screen that checks `OFFICER_PIN` via
 `POST /auth/officer` (empty PIN in `.env` accepts any value for local demo).
 An unlocked browser session expires after four hours — this is a UI gate only;

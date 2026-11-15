@@ -29,11 +29,13 @@ def deliver_applicant_message(
         raise DeliveryError(
             "No applicant email — enter the correspondent address before sending."
         )
-    user = (settings.email_imap_user or "").strip()
+    user = (
+        getattr(settings, "email_smtp_user", None) or settings.email_imap_user or ""
+    ).strip()
     password = (settings.email_imap_password or "").strip()
     if not user or not password:
         raise DeliveryError(
-            "EMAIL_IMAP_USER / EMAIL_IMAP_PASSWORD required to send email."
+            "EMAIL_SMTP_USER (or EMAIL_IMAP_USER) / EMAIL_IMAP_PASSWORD required to send email."
         )
     try:
         return deliver_email(

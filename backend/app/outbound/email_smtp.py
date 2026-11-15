@@ -33,12 +33,16 @@ def deliver_email(
     if not to:
         raise ValueError("no valid applicant email address")
 
-    user = (settings.email_imap_user or "").strip()
+    user = (
+        getattr(settings, "email_smtp_user", None) or settings.email_imap_user or ""
+    ).strip()
     password = (settings.email_imap_password or "").strip()
     host = getattr(settings, "email_smtp_host", None) or "smtp.gmail.com"
     port = int(getattr(settings, "email_smtp_port", None) or 587)
     if not user or not password:
-        raise RuntimeError("EMAIL_IMAP_USER / EMAIL_IMAP_PASSWORD required for SMTP send")
+        raise RuntimeError(
+            "EMAIL_SMTP_USER (or EMAIL_IMAP_USER) / EMAIL_IMAP_PASSWORD required for SMTP send"
+        )
 
     msg = EmailMessage()
     msg["From"] = user

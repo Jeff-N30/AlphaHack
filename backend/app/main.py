@@ -300,6 +300,7 @@ def gloria_action(
                 officer=officer,
                 draft_id=body.draft_id,
                 to_email=body.to_email,
+                body_override=body.body_override,
             )
         if action == "send_back":
             return send_draft(
