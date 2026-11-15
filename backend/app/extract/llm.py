@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import Settings, get_settings
+from app.trace.recorder import annotate
 from app.models import CostLine
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,8 @@ def extract_structured(
     if path.exists():
         data = json.loads(path.read_text(encoding="utf-8"))
         _record_cost(step, model, 0, 0, settings)
+        annotate(llm_source=f"cache:{data.get('source', 'unknown')}", model=model, step=step,
+                 via=["store:llm_cache"])
         return schema.model_validate(data["result"])
 
     if settings.demo_offline:
@@ -165,6 +168,8 @@ def extract_structured(
             encoding="utf-8",
         )
         _record_cost(step, f"{model}+offline", 0, 0, settings)
+        annotate(llm_source="offline_fixture", model=f"{model}+offline", step=step,
+                 via=["store:llm_cache"])
         return offline_fixture
 
     provider = settings.extract_provider.lower()
@@ -175,6 +180,8 @@ def extract_structured(
 
     result, inp, out = _call_ollama(system, user, schema, settings)
     _record_cost(step, model, inp, out, settings)
+    annotate(llm_source="ollama", model=model, step=step, tokens_in=inp, tokens_out=out,
+             via=["llm:ollama", "store:llm_cache"])
     path.write_text(
         json.dumps({"result": result.model_dump(mode="json"), "source": "live"}, indent=2, default=str),
         encoding="utf-8",

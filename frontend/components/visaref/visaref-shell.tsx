@@ -18,6 +18,7 @@ import {
   Loading03Icon,
   Mail01Icon,
   Menu01Icon,
+  NeuralNetworkIcon,
   PassportIcon,
   RefreshIcon,
   SentIcon,
@@ -459,26 +460,24 @@ function filesForIssue(files: string[], row: AuditRow): string[] {
   if (ruleId === "ID.NAME_MATCH" || ruleId === "ID.DOB_MATCH") {
     const evidence = row.evidence ?? [];
     const passport = findFileForDoc(files, "passport");
-    let weakestDoc: string | null = null;
-    let weakestScore = 101;
-    for (const e of evidence) {
-      if (!e.doc || e.doc === "passport") continue;
-      const m = String(e.value ?? "").match(/\((\d+(?:\.\d+)?)\)\s*$/);
-      const score = m ? Number(m[1]) : ruleId === "ID.NAME_MATCH" ? 100 : 0;
-      // NAME: lowest score; DOB: first non-passport mismatch (no score)
-      if (ruleId === "ID.NAME_MATCH") {
-        if (score < weakestScore) {
-          weakestScore = score;
-          weakestDoc = e.doc;
-        }
-      } else if (!weakestDoc) {
-        weakestDoc = e.doc;
-      }
-    }
-    const other = weakestDoc ? findFileForDoc(files, weakestDoc) : null;
     const out: string[] = [];
     if (passport) out.push(passport);
-    if (other && other !== passport) out.push(other);
+    const seen = new Set<string>();
+    // NAME: every mismatched doc (score < 100); DOB: every non-passport evidence doc
+    const scored: { doc: string; score: number }[] = [];
+    for (const e of evidence) {
+      if (!e.doc || e.doc === "passport" || seen.has(e.doc)) continue;
+      const m = String(e.value ?? "").match(/\((\d+(?:\.\d+)?)\)\s*$/);
+      const score = m ? Number(m[1]) : ruleId === "ID.NAME_MATCH" ? 100 : 0;
+      if (ruleId === "ID.NAME_MATCH" && score >= 100) continue;
+      seen.add(e.doc);
+      scored.push({ doc: e.doc, score });
+    }
+    scored.sort((a, b) => a.score - b.score);
+    for (const { doc } of scored) {
+      const hit = findFileForDoc(files, doc);
+      if (hit && !out.includes(hit)) out.push(hit);
+    }
     if (out.length) return out;
   }
 
@@ -532,27 +531,34 @@ function issuePlain(row: AuditRow): string {
   const msg = (row.message ?? "").trim();
 
   if (ruleId === "ID.NAME_MATCH") {
+    // Prefer backend message — lists every mismatched doc (flight, bank, insurance, …)
+    if (/Passport says/i.test(msg) && /match|check /i.test(msg)) {
+      return msg;
+    }
     const evidence = row.evidence ?? [];
     const passportName = nameFromEvidenceValue(
       evidence.find((e) => e.doc === "passport")?.value,
     );
-    // Weakest match = lowest trailing score among non-passport rows
-    let weakest: { doc: string; name: string; score: number } | null = null;
+    const mismatches: { doc: string; name: string; score: number }[] = [];
+    const seen = new Set<string>();
     for (const e of evidence) {
-      if (!e.doc || e.doc === "passport") continue;
+      if (!e.doc || e.doc === "passport" || seen.has(e.doc)) continue;
       const m = String(e.value ?? "").match(/^(.*?)\s*\((\d+(?:\.\d+)?)\)\s*$/);
       const name = nameFromEvidenceValue(e.value);
       const score = m ? Number(m[2]) : 100;
-      if (!name) continue;
-      if (score < 100 && (!weakest || score < weakest.score)) {
-        weakest = { doc: e.doc, name, score };
-      }
+      if (!name || score >= 100) continue;
+      seen.add(e.doc);
+      mismatches.push({ doc: e.doc, name, score });
     }
-    if (passportName && weakest) {
-      return (
-        `Passport: ${passportName} · ${plainDoc(weakest.doc)}: ${weakest.name} ` +
-        `— confirm it’s the same person`
-      );
+    mismatches.sort((a, b) => a.score - b.score);
+    if (passportName && mismatches.length) {
+      const listed = mismatches
+        .map((x) => `${plainDoc(x.doc)} (“${x.name}”)`)
+        .join(", ");
+      const askFix = mismatches.some((x) => x.score < 70);
+      return askFix
+        ? `Passport says “${passportName}” — doesn’t match ${listed} — ask applicant to fix`
+        : `Passport says “${passportName}” — check ${listed} — confirm it’s the same person`;
     }
     if (/MRZ|Gloria review|variant/i.test(msg)) {
       return copy.hint;
@@ -1289,10 +1295,10 @@ function ApprovalPanel({
                 secondaryButton,
                 "h-7 shrink-0 gap-1.5 rounded-[var(--rb-r-sm,6px)] px-2.5 text-[12px]/[16px] font-medium text-[#41494c]",
               )}
-              title="Open the detailed agent execution graph"
+              title="Open the agent execution graph for this file"
             >
               <span className="size-1.5 rounded-full bg-[oklch(62%_0.16_145)]" />
-              Agent graph
+              View execution graph
             </button>
           </div>
           <span
@@ -1522,18 +1528,24 @@ function ApprovalPanel({
                             const linked = filesForIssue(files, r);
                             const verdict = lookVerdict[id];
                             const setVerdict = (v: "ok" | "fail") => {
+                              // Toggle only — do not open docs (that felt like the row vanished)
                               setLookVerdict((prev) => ({
                                 ...prev,
                                 [id]: prev[id] === v ? undefined : v,
                               }));
-                              if (linked.length) openDocs(linked);
                             };
                             return (
                               <li key={id}>
                                 <div
                                   className={cx(
                                     checkRow,
-                                    "items-center transition-colors duration-[120ms] hover:bg-[rgb(25_33_35/0.025)] dark:hover:bg-neutral-100/[0.03]",
+                                    "items-center transition-[opacity,background-color] duration-[120ms]",
+                                    verdict === "ok" &&
+                                      "bg-[rgb(47_107_74/0.06)] opacity-75 dark:bg-[rgb(47_107_74/0.12)]",
+                                    verdict === "fail" &&
+                                      "bg-[rgb(155_61_61/0.06)] dark:bg-[rgb(155_61_61/0.12)]",
+                                    !verdict &&
+                                      "hover:bg-[rgb(25_33_35/0.025)] dark:hover:bg-neutral-100/[0.03]",
                                   )}
                                 >
                                   <button
@@ -1545,13 +1557,38 @@ function ApprovalPanel({
                                       linked.length
                                         ? cx(transition, "cursor-pointer")
                                         : "cursor-default",
-                                      verdict === "fail" && "opacity-80",
                                     )}
                                   >
-                                    <span className={cx(typeRowTitle, text1, "block")}>
+                                    <span
+                                      className={cx(
+                                        typeRowTitle,
+                                        text1,
+                                        "block",
+                                        verdict === "ok" &&
+                                          "text-[#2f6b4a] dark:text-[oklch(72%_0.08_150)]",
+                                        verdict === "fail" && "text-[#9b3d3d]",
+                                      )}
+                                    >
                                       {copy.title}
+                                      {verdict === "ok" ? (
+                                        <span className="ms-2 text-[12px] font-medium opacity-80">
+                                          · checked
+                                        </span>
+                                      ) : null}
+                                      {verdict === "fail" ? (
+                                        <span className="ms-2 text-[12px] font-medium opacity-80">
+                                          · send back
+                                        </span>
+                                      ) : null}
                                     </span>
-                                    <span className={checkHint}>{issuePlain(r)}</span>
+                                    <span
+                                      className={cx(
+                                        checkHint,
+                                        verdict === "ok" && "line-through opacity-70",
+                                      )}
+                                    >
+                                      {issuePlain(r)}
+                                    </span>
                                   </button>
                                   <div
                                     role="group"
@@ -1561,21 +1598,29 @@ function ApprovalPanel({
                                     <button
                                       type="button"
                                       aria-pressed={verdict === "ok"}
-                                      aria-label={`Accept ${copy.title}`}
-                                      title="Looks fine"
+                                      aria-label={
+                                        verdict === "ok"
+                                          ? `Checked — ${copy.title}. Click to clear`
+                                          : `Accept ${copy.title}`
+                                      }
+                                      title={
+                                        verdict === "ok"
+                                          ? "Checked — click to clear"
+                                          : "Looks fine"
+                                      }
                                       onClick={() => setVerdict("ok")}
                                       className={cx(
                                         "flex w-7 cursor-pointer items-center justify-center border-r border-[rgb(25_33_35/0.12)] transition-colors duration-[120ms] dark:border-neutral-100/16",
                                         focusRingInset,
                                         verdict === "ok"
                                           ? "bg-[#2f6b4a] text-white"
-                                          : "bg-white text-[#2f6b4a] hover:bg-[rgb(47_107_74/0.08)] dark:bg-neutral-950 dark:hover:bg-[rgb(47_107_74/0.18)]",
+                                          : "bg-white text-[#2f6b4a]/55 hover:bg-[rgb(47_107_74/0.08)] hover:text-[#2f6b4a] dark:bg-neutral-950 dark:hover:bg-[rgb(47_107_74/0.18)]",
                                       )}
                                     >
                                       <HugeiconsIcon
                                         icon={Tick02Icon}
                                         size={12}
-                                        strokeWidth={2}
+                                        strokeWidth={2.5}
                                       />
                                     </button>
                                     <button
@@ -1589,7 +1634,7 @@ function ApprovalPanel({
                                         focusRingInset,
                                         verdict === "fail"
                                           ? "bg-[#9b3d3d] text-white"
-                                          : "bg-white text-[#9b3d3d] hover:bg-[rgb(155_61_61/0.08)] dark:bg-neutral-950 dark:hover:bg-[rgb(155_61_61/0.18)]",
+                                          : "bg-white text-[#9b3d3d]/55 hover:bg-[rgb(155_61_61/0.08)] hover:text-[#9b3d3d] dark:bg-neutral-950 dark:hover:bg-[rgb(155_61_61/0.18)]",
                                       )}
                                     >
                                       <HugeiconsIcon
@@ -1775,7 +1820,7 @@ function ApprovalPanel({
                   {!showSendBack && !allYouConfirmed ? (
                     <p className={cx(typeCaption, "flex items-start gap-2 text-[#737c7f] dark:text-neutral-100/55")}>
                       <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[oklch(72%_0.15_70)]" />
-                      Tap ✓ on each look-item to Approve, or ✕ to send back
+                      Check each look-item to Approve, or ✕ to send back
                     </p>
                   ) : null}
                 </div>
@@ -1933,12 +1978,8 @@ function ApprovalPanel({
       </div>
       {showExecutionGraph ? (
         <AgentExecutionGraph
+          applicationId={applicationId}
           applicantName={meta?.applicant_name}
-          files={files}
-          outcome={outcome}
-          resultCount={results.length}
-          escalationCount={Number(audit?.escalations ?? 0)}
-          completed={Boolean(meta?.status?.startsWith("approved"))}
           onClose={() => setShowExecutionGraph(false)}
         />
       ) : null}
@@ -1951,6 +1992,7 @@ export default function VisaRefShell() {
   const reduceMotion = useReducedMotion();
   const [areaId, setAreaId] = useState<NavView>("queue");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [graphFor, setGraphFor] = useState<{ id: string; name: string | null } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerShown, setDrawerShown] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -2437,7 +2479,7 @@ export default function VisaRefShell() {
                             {filtered.map((row) => {
                               const selected = selectedId === row.id;
                               return (
-                                <li key={row.id}>
+                                <li key={row.id} className="group/row relative">
                                   <button
                                     type="button"
                                     aria-pressed={selected}
@@ -2447,7 +2489,7 @@ export default function VisaRefShell() {
                                       pressedFill,
                                       transition,
                                       focusRingInset,
-                                      "group relative flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left",
+                                      "group relative flex w-full cursor-pointer items-start gap-3 py-3.5 pr-12 pl-5 text-left",
                                       selected && "bg-[#f7f8f8] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[#192123] hover:bg-[#f3f4f4] dark:bg-neutral-100/9 dark:before:bg-neutral-100",
                                     )}
                                   >
@@ -2473,6 +2515,24 @@ export default function VisaRefShell() {
                                       </span>
                                     </span>
                                   </button>
+                                  {row.has_report && (bucket(row) === "queue" || bucket(row) === "approved") ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setGraphFor({ id: row.id, name: row.applicant_name ?? null })
+                                      }
+                                      title="View execution graph"
+                                      aria-label={`View execution graph for ${row.applicant_name || "this application"}`}
+                                      className={cx(
+                                        transition,
+                                        focusRingInset,
+                                        "absolute top-1/2 right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-[6px] text-[#9aa2a5] hover:bg-[#192123]/6 hover:text-[#192123] dark:text-neutral-500 dark:hover:bg-neutral-100/8 dark:hover:text-neutral-100",
+                                        selected && "text-[#41494c]",
+                                      )}
+                                    >
+                                      <HugeiconsIcon icon={NeuralNetworkIcon} size={16} strokeWidth={1.7} />
+                                    </button>
+                                  ) : null}
                                 </li>
                               );
                             })}
@@ -2706,6 +2766,13 @@ export default function VisaRefShell() {
           </div>
         </div>
       )}
+      {graphFor ? (
+        <AgentExecutionGraph
+          applicationId={graphFor.id}
+          applicantName={graphFor.name}
+          onClose={() => setGraphFor(null)}
+        />
+      ) : null}
     </div>
   );
 }

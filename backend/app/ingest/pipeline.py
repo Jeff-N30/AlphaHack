@@ -5,7 +5,8 @@ import json
 import logging
 import re
 import tempfile
-from datetime import date
+import time
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from app.extract.mrz import best_mrz
 from app.ingest.render import DocumentPreview, allowed_suffix, read_preview, render_page_png
 from app.models import DocType, MRZ
 from app.storage.files import app_dir, load_meta, save_meta
+from app.trace.recorder import record as trace_record
+from app.trace.recorder import span as trace_span
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,21 @@ def process_application(
     settings: Settings | None = None,
     max_pages: int | None = None,
 ) -> dict[str, Any]:
+    with trace_span("stage:ingest", label="Ingest documents") as out:
+        report = _process_application(application_id, settings=settings, max_pages=max_pages)
+        files = report.get("files") or []
+        out["files"] = len(files)
+        out["rejected"] = sum(1 for f in files if f.get("rejected"))
+        out["mrz_found"] = sum(1 for f in files if f.get("mrz"))
+        return report
+
+
+def _process_application(
+    application_id: str,
+    *,
+    settings: Settings | None = None,
+    max_pages: int | None = None,
+) -> dict[str, Any]:
     settings = settings or get_settings()
     meta = load_meta(application_id, settings)
     root = app_dir(application_id, settings)
@@ -113,10 +131,22 @@ def process_application(
                     "reason": "unsupported_type",
                 }
             )
+            trace_record(
+                f"file:{path.name}",
+                label=path.name,
+                status="skipped",
+                inputs={"file": path.name},
+                outputs={"rejected": True, "reason": "unsupported_type"},
+            )
             continue
 
+        f_started = datetime.now(timezone.utc).isoformat()
+        t0 = time.perf_counter()
         prev = read_preview(path, max_pages=max_pages)
+        t1 = time.perf_counter()
         classified = classify_document(prev.text, filename=path.name, settings=settings)
+        t2 = time.perf_counter()
+        t3 = t2
         entry: dict[str, Any] = {
             "file": path.name,
             "rejected": False,
@@ -136,6 +166,7 @@ def process_application(
         if looks_like_passport:
             # Passport PDFs must be rasterized — previously only PNG/JPG ran MRZ.
             mrz = _mrz_for_file(path, preview_text=prev.text or "")
+            t3 = time.perf_counter()
             if mrz is not None:
                 entry["mrz"] = mrz.model_dump(mode="json")
             elif classified.doc_type == DocType.passport:
@@ -143,6 +174,29 @@ def process_application(
                 entry["mrz_note"] = "checksums_failed_or_unreadable"
 
         files_out.append(entry)
+        cls_json = entry["classification"]
+        trace_record(
+            f"file:{path.name}",
+            label=path.name,
+            started_at=f_started,
+            ended_at=datetime.now(timezone.utc).isoformat(),
+            duration_ms=round((t3 - t0) * 1000, 3),
+            inputs={"file": path.name, "bytes": path.stat().st_size, "max_pages": max_pages},
+            outputs={
+                "preview_method": prev.method,
+                "pages": len(prev.pages),
+                "chars": len(prev.text),
+                "doc_type": cls_json.get("doc_type"),
+                "classification": {k: cls_json.get(k) for k in ("method", "confidence") if k in cls_json},
+                "mrz": "valid" if entry.get("mrz") else entry.get("mrz_note") if looks_like_passport else None,
+                "timings_ms": {
+                    "render_preview": round((t1 - t0) * 1000, 3),
+                    "classify": round((t2 - t1) * 1000, 3),
+                    **({"mrz": round((t3 - t2) * 1000, 3)} if looks_like_passport else {}),
+                },
+            },
+            via=["op:render", "op:classify", *(["op:mrz"] if looks_like_passport else [])],
+        )
 
     report = {
         "application_id": application_id,

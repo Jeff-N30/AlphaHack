@@ -148,40 +148,58 @@ def _line1_ocr_variants(line1: str) -> list[str]:
     for s in (fixed, base):
         if s not in out:
             out.append(s)
+    # NASSARK<<KARIMK → NASSAR<<KARIM (both ends glued OCR-K). Not BARK<<JOE.
+    sur, giv = _parse_names_from_line1(fixed)
+    if len(sur) > 4 and sur.endswith("K") and len(giv) > 3 and giv.endswith("K"):
+        cleaned = _rebuild_line1(sur[:-1], giv[:-1], fixed[2:5])
+        if cleaned not in out:
+            out.insert(0, cleaned)
     return out
 
 
-def _name_candidates(names: str) -> list[str]:
+def _name_candidates(names: str, *, strip_trailing_k: bool = True) -> list[str]:
     """OCR often appends a trailing K (MOHAMADK / NADERK) from a misread '<'.
 
-    Prefer the K-stripped form. Never strip S (GEORGES). Keep multi-token
-    surnames intact (AL HAJJ → not just AL).
+    Never strip S (GEORGES). Keep multi-token surnames intact (AL HAJJ → not just AL).
+
+    For surnames pass strip_trailing_k=False so BARK/MALEK stay; only strip surname
+    K when the given name also shows filler-K (see callers).
     """
     toks = [t for t in re.split(r"\s+", (names or "").strip()) if t]
-    toks = [t for t in toks if not re.fullmatch(r"[SKE<]+", t)]
+    # Drop filler OCR blobs (SSS, SKKKK, SSS9SKKKKK) — not real name parts
+    toks = [t for t in toks if not re.fullmatch(r"[SKE<0-9]+", t)]
     if not toks:
         return []
 
-    def strip_trailing_k(token: str) -> str:
+    def strip_k(token: str) -> str:
         if len(token) > 3 and token.endswith("K"):
             return token[:-1]
         return token
 
-    stripped = [strip_trailing_k(t) for t in toks]
+    stripped = [strip_k(t) for t in toks]
     out: list[str] = []
-    # As-read first: BARK / MALEK are real names; stripped is only a fallback
-    for variant in (toks, stripped):
+    variants: tuple[list[str], ...]
+    if strip_trailing_k:
+        variants = (stripped, toks)
+    else:
+        variants = (toks,)
+    for variant in variants:
         s = " ".join(variant)
         if s and s not in out:
             out.append(s)
     # "NADERK JEFF" from a broken single-`<` parse → also try surname-only / given-only
-    if len(stripped) == 2:
+    if strip_trailing_k and len(stripped) == 2:
         for part in stripped:
             if part not in out:
                 out.append(part)
     return out
 
 
+def _tokens_had_trailing_k(names: str) -> bool:
+    """True when a real given-name token ends in K (KARIMK), not filler SSS9SKKKKK."""
+    toks = [t for t in re.split(r"\s+", (names or "").strip()) if t]
+    toks = [t for t in toks if not re.fullmatch(r"[SKE<0-9]+", t)]
+    return any(len(t) > 3 and t.endswith("K") for t in toks)
 def _normalize_personal_zone(line2: str) -> str:
     chars = list(_normalize_line(line2))
     for i in range(_PERSONAL.start, 43):
@@ -312,17 +330,27 @@ def parse_td3(
     )
 
 def _name_quality(mrz: MRZ) -> int:
-    """Lower is better. Prefer <<, a present given name, longer given (GEORGES > GEORGE).
+    """Lower is better. Prefer <<, clean given, longer given (GEORGES > GEORGE).
 
-    No trailing-K penalty: BARK / MALEK / TARIK are real names. Glued filler-K
-    (NADERK<JEFF) is already fixed in `_fix_line1_filler_k`, whose line is tried first.
+    Line-1 names are NOT in ICAO check digits — NASSARK and NASSAR can both
+    "validate" with the same line 2. Prefer given without trailing OCR-K; when
+    both surname and given end in K (NASSARK+KARIMK), heavily prefer the strip.
+    Surname-only trailing K (BARK+JOE) is not penalized — that letter is real.
     """
     score = 0
     if "<<" not in (mrz.line1 or ""):
         score += 5
+    sur = (mrz.surname or "").replace(" ", "")
     giv = (mrz.given_names or "").replace(" ", "")
     if not giv:
         score += 2
+    if len(giv) > 3 and giv.endswith("K"):
+        score += 6
+    if len(sur) > 3 and sur.endswith("K") and len(giv) > 3 and giv.endswith("K"):
+        score += 8
+    elif len(sur) > 4 and sur.endswith("K"):
+        # NASSARK<<KARIM vs NASSAR<<KARIM — prefer strip. BARK (len 4) untouched.
+        score += 3
     score -= len(giv)
     return score
 
@@ -363,20 +391,30 @@ def _candidates_from_passporteye_dict(data: dict) -> list[tuple[str, str]]:
         return []
 
     nat = (data.get("nationality") or data.get("country") or "LBN").replace("<", "")[:3]
-    surnames = _name_candidates((data.get("surname") or "").replace("<", " ").strip())
-    givens = _name_candidates(data.get("names") or "")
+    pe_sur = (data.get("surname") or "").replace("<", " ").strip()
+    pe_giv = data.get("names") or ""
+    # Keep surname trailing K (BARK) unless given also shows filler-K (NASSARK+KARIMK)
+    strip_sur_k = _tokens_had_trailing_k(pe_giv)
+    surnames = _name_candidates(pe_sur, strip_trailing_k=strip_sur_k)
+    if not surnames and pe_sur:
+        surnames = _name_candidates(pe_sur, strip_trailing_k=False)
+    givens = _name_candidates(pe_giv, strip_trailing_k=True)
     split = _split_mrz_text(raw)
     raw_l1 = split[0] if split else None
     if raw_l1:
         for l1v in _line1_ocr_variants(raw_l1):
             sur_r, giv_r = _parse_names_from_line1(l1v)
-            for s in _name_candidates(sur_r):
+            strip_r = _tokens_had_trailing_k(giv_r) or strip_sur_k
+            for s in _name_candidates(sur_r, strip_trailing_k=strip_r):
                 if s not in surnames:
                     surnames.append(s)
-            for g in _name_candidates(giv_r):
+            for g in _name_candidates(giv_r, strip_trailing_k=True):
                 if g not in givens:
                     givens.append(g)
-
+    # Always keep as-read surname so BARK stays even when we also try NASSAR
+    for s in _name_candidates(pe_sur, strip_trailing_k=False):
+        if s not in surnames:
+            surnames.append(s)
     cands: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
 

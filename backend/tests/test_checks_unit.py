@@ -97,16 +97,16 @@ def test_name_thresholds_85_70() -> None:
     assert score3 < 70
 
 
-def test_name_match_refuses_invalid_mrz() -> None:
-    """Failed MRZ checksums must not drive a FAIL against pack names (no OCR junk)."""
+def test_name_match_fails_when_swapped_passport_even_if_mrz_bad() -> None:
+    """Edge demo: cleaned MRZ name BARK JOE vs Jeff pack → FAIL (ask applicant)."""
     from app.models import MRZ
     from app.rules.checks.identity import name_consistency
 
     mrz = MRZ(
-        line1="P<LBNBAR<<JOE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+        line1="P<LBNBARK<<JOE<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
         line2="LR41164833LBN0208144M35061561002339074<<<<12",
-        surname="BAR",
-        given_names="JOE SSS SKKKK",
+        surname="BARK",
+        given_names="JOE",
         passport_number="LR4116483",
         nationality="LBN",
         date_of_birth=date(2002, 8, 14),
@@ -119,8 +119,8 @@ def test_name_match_refuses_invalid_mrz() -> None:
         documents={
             DocType.passport: [
                 PassportExtraction(
-                    surname="BAR",
-                    given_names="JOE SSS SKKKK",
+                    surname="BARK",
+                    given_names="JOE",
                     nationality="LBN",
                     passport_number="LR4116483",
                     date_of_birth=date(2002, 8, 14),
@@ -142,17 +142,49 @@ def test_name_match_refuses_invalid_mrz() -> None:
                     ],
                 )
             ],
+            DocType.bank_statement: [
+                BankStatementExtraction(
+                    account_holder="Jeff Gerges Nader",
+                    bank_name="B",
+                    account_currency="USD",
+                    period_start=date(2026, 5, 1),
+                    period_end=date(2026, 10, 31),
+                    issue_date=date(2026, 11, 5),
+                    opening_balance=1,
+                    closing_balance=1000,
+                    has_bank_stamp=True,
+                )
+            ],
+            DocType.travel_insurance: [
+                TravelInsuranceExtraction(
+                    insured_name="JEFF NADER",
+                    insurer="X",
+                    policy_number="1",
+                    coverage=Money(amount=30000, currency="EUR"),
+                    territory="SCHENGEN",
+                    territory_raw="Schengen",
+                    start_date=date(2026, 12, 1),
+                    end_date=date(2026, 12, 10),
+                    covers=["emergency_medical", "hospitalisation", "repatriation"],
+                )
+            ],
         }
     )
     r = name_consistency(
         facts,
-        {"compare": ["flight_booking"], "variant_threshold": 85, "fail_below": 70},
+        {
+            "compare": ["flight_booking", "bank_statement", "travel_insurance"],
+            "variant_threshold": 85,
+            "fail_below": 70,
+        },
         _ctx(),
     )
-    assert r.status == Status.NEEDS_HUMAN
-    assert "MRZ" in (r.message or "")
-    assert "SSS" not in (r.message or "")
-    assert "Jeff" not in (r.message or "")
+    assert r.status == Status.FAIL
+    assert "BARK" in (r.message or "") and "JOE" in (r.message or "")
+    assert "flight booking" in (r.message or "").lower()
+    assert "bank statement" in (r.message or "").lower()
+    assert "insurance" in (r.message or "").lower()
+    assert "ask applicant" in (r.message or "").lower()
 
 
 def test_bank_window_exactly_6_months() -> None:
