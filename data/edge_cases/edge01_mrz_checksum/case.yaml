@@ -1,0 +1,13 @@
+case_id: edge01_mrz_checksum
+demo_label: EDGE 01 · Joe passport (MRZ)
+submission_date: '2026-11-15'
+destination_checklist: fr-schengen-short-stay
+story: 'Supporting docs stay Jeff''s. Only the passport is swapped for edgcase1.jpeg
+  (tampered MRZ). AI/OCR + rules should raise PP.MRZ_CHECKSUM → NEEDS_HUMAN.
+
+  '
+swap:
+  passport: docs/passport_edge.jpeg
+expected_flags:
+- PP.MRZ_CHECKSUM
+keep_jeff_untouched: true

@@ -87,6 +87,8 @@ def run_edge(edge_id: str) -> str:
         out_name = {
             "passport": "passport.jpeg",
             "travel_insurance": "travel_insurance.pdf",
+            "flight_booking": "flight_booking.pdf",
+            "hotel_booking": "hotel_booking.pdf",
             "bank_statement": "bank_statement.pdf",
             "photo": "photo.png",
         }.get(dest_name, Path(rel).name)

@@ -1,0 +1,14 @@
+case_id: edge02_insurance_name
+demo_label: EDGE 02 · Jeff passport + Joe insurance
+submission_date: '2026-11-15'
+destination_checklist: fr-schengen-short-stay
+story: 'Supporting docs stay Jeff''s. Only travel_insurance is swapped for insuranceedgecase2.pdf
+  (JOE CHARBEL BAREK / BARK, coverage Feb–Mar 2027). Rules should FAIL ID.NAME_MATCH
+  (and likely INS.COVERS_STAY vs Jeff''s 2026 flights).
+
+  '
+swap:
+  travel_insurance: docs/travel_insurance_edge.pdf
+expected_flags:
+- ID.NAME_MATCH
+keep_jeff_untouched: true

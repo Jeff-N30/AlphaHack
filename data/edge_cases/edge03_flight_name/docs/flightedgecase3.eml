@@ -1,0 +1,110 @@
+From: "Travel Document (SAMPLE)" <noreply@sample-airline.example>
+To: joe.bark@example.com
+Subject: BARK/JOE 04FEB2027 BEY CDG
+Date: Tue, 08 Dec 2026 08:27:54 +0000
+Message-ID: <SAMPLE-0001@sample-airline.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============3408856944046719587=="
+
+--===============3408856944046719587==
+Content-Type: multipart/alternative;
+ boundary="===============7981919241119739740=="
+
+--===============7981919241119739740==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Sample itinerary - view in HTML.
+
+--===============7981919241119739740==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body style=3D"font-family:Arial;font-size:13px">
+<div style=3D"background:#fee;border:1px solid #c00;padding:6px;color:#c00"><=
+b>SAMPLE / TRAINING DATA ONLY</b> - fictional airline, agency and booking. No=
+t a real ticket.</div>
+<h3>ITIH0 &nbsp; Document Issue Date : 08DEC2026</h3>
+<h3>Your trip</h3>
+<p>Booking ref : <b>ABC123</b></p>
+<p><b>Traveler</b><br>Joe Bark</p>
+<p><b>Agency Information</b><br>SAMPLE TRAVEL AGENCY<br>TBA<br>Tel: +000 0 00=
+0000</p>
+<p>Your itinerary is summarized below. Please refer to the attached PDF docum=
+ent for detailed information.</p>
+<h4>Thursday, 04 FEB 2027</h4>
+<table border=3D"0" cellpadding=3D"3">
+<tr><td>Airline Booking Reference : ABC123</td></tr>
+<tr><td><b>CS 211</b> Cedar Sample Airways</td></tr>
+<tr><td>04FEB, 07:50 &nbsp; Beirut, (Rafic Hariri Intl)</td></tr>
+<tr><td>04FEB, 11:35 &nbsp; Paris, (Charles De Gaulle) &nbsp; Terminal : 2C</=
+td></tr>
+<tr><td>04h 45m (Non stop)</td></tr>
+<tr><td>Class : Economy (T) &nbsp; Booking status : Confirmed</td></tr></tabl=
+e>
+<h4>Wednesday, 10 FEB 2027</h4>
+<table border=3D"0" cellpadding=3D"3">
+<tr><td>Airline Booking Reference : ABC123</td></tr>
+<tr><td><b>CS 212</b> Cedar Sample Airways</td></tr>
+<tr><td>10FEB, 13:40 &nbsp; Paris, (Charles De Gaulle) &nbsp; Terminal : 2C</=
+td></tr>
+<tr><td>10FEB, 18:55 &nbsp; Beirut, (Rafic Hariri Intl)</td></tr>
+<tr><td>04h 15m (Non stop)</td></tr>
+<tr><td>Class : Economy (Q) &nbsp; Booking status : Confirmed</td></tr></tabl=
+e>
+<h4>Ticket details</h4><p>Ticket 999-0000000001</p>
+<h4>Other information</h4><p>Please check airline's check-in procedures for t=
+his itinerary.</p>
+</body></html>
+
+--===============7981919241119739740==--
+
+--===============3408856944046719587==
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="Itinerary.pdf"
+MIME-Version: 1.0
+
+JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3Vy
+Y2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUgo+PgplbmRvYmoKMiAwIG9iago8PAov
+QmFzZUZvbnQgL0hlbHZldGljYSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjEg
+L1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9CYXNlRm9u
+dCAvSGVsdmV0aWNhLUJvbGQgL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcgL05hbWUgL0YyIC9T
+dWJ0eXBlIC9UeXBlMSAvVHlwZSAvRm9udAo+PgplbmRvYmoKNCAwIG9iago8PAovQ29udGVudHMg
+OCAwIFIgL01lZGlhQm94IFsgMCAwIDU5NS4yNzU2IDg0MS44ODk4IF0gL1BhcmVudCA3IDAgUiAv
+UmVzb3VyY2VzIDw8Ci9FeHRHU3RhdGUgPDwKL2dSTHMwIDw8Ci9jYSAuMTgKPj4KPj4gL0ZvbnQg
+MSAwIFIgL1Byb2NTZXQgWyAvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJIF0KPj4g
+L1JvdGF0ZSAwIC9UcmFucyA8PAoKPj4gCiAgL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjUgMCBvYmoK
+PDwKL1BhZ2VNb2RlIC9Vc2VOb25lIC9QYWdlcyA3IDAgUiAvVHlwZSAvQ2F0YWxvZwo+PgplbmRv
+YmoKNiAwIG9iago8PAovQXV0aG9yIChhbm9ueW1vdXMpIC9DcmVhdGlvbkRhdGUgKEQ6MjAyNjEx
+MTUwOTE2NTArMDAnMDAnKSAvQ3JlYXRvciAoYW5vbnltb3VzKSAvS2V5d29yZHMgKCkgL01vZERh
+dGUgKEQ6MjAyNjExMTUwOTE2NTArMDAnMDAnKSAvUHJvZHVjZXIgKFJlcG9ydExhYiBQREYgTGli
+cmFyeSAtIFwob3BlbnNvdXJjZVwpKSAKICAvU3ViamVjdCAodW5zcGVjaWZpZWQpIC9UaXRsZSAo
+dW50aXRsZWQpIC9UcmFwcGVkIC9GYWxzZQo+PgplbmRvYmoKNyAwIG9iago8PAovQ291bnQgMSAv
+S2lkcyBbIDQgMCBSIF0gL1R5cGUgL1BhZ2VzCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9GaWx0ZXIg
+WyAvQVNDSUk4NURlY29kZSAvRmxhdGVEZWNvZGUgXSAvTGVuZ3RoIDg0Mgo+PgpzdHJlYW0KR2F0
+PSg/I1NGTidSZi5HU0IjZGtfKUQsTUA4W0IpYm0mXydHOCFrXS8yL1ZqODMvLD9sRyZzYmQhQXUj
+W2ZuNFJLQzpocCpudUkla1JaTGEoRTkkbmQyPmhZIy8xL0gvSzkoalIoKWNLZSZXU1MvY1FdZCM3
+P2c1bztMZEpKYzlfQ1pcMF0/UzsjVzkqRnMuKC1XPyVwWldUOFpOb0hRIkY3PSwrbiIuJDxKaXR0
+Tzc7WCFuSzUuW0lhS2UqMGYzPSlfQkklbUhyWkk0PEBJQz5TLTQrYWM4YnVHMFMhUm49XF5KSCo1
+R0c2K1xybiEmPmAhZjE4PlhOK0BKNlxsRT11Y09TWkhyOTZeP2htPk04NV8rOi1dXnBzQEwvcmoy
+K1skWEE+X01kMlJSP0FhTzQrPyJzbys1LjU5NVZyUzxGU0EtVEt1LU4ibUwiZSk9JE9Wakk5UERc
+Vj9SN3E6OGVCcUdgS01eZVtFbSZSPkZxWF5uamw8Yilxb19FSDtXTG9jKyU/NTlOb1ReUidgXChS
+WEo2WzRbOUwkPD4vTlBNbmlFTWFIXDFjNj8qPWxUMXEqbCsxSVM7J0c1OUxObFtdZWBLMChFbTRb
+MClVV0BZKmBfO088dVxeIj1CXnVnUypLRHUyMSpNVEBkYC5JaSVIQ2txOS9jZj9STCpDaG5PMzRn
+VHVhcVlkI1MqbWxAOypGTSdnV0gxaDIsM3BtcVYzanRfRmJTTnVbUShsKGJHYW08alBZMGlwLSEk
+OXRSJ2FoWSM8LDk5VjdycHBEUD1uWy4uWUNeYzJKVmI3UixkNzNeJVksQz5KMFZaVmFIJFkpaDdJ
+XT1XVDUqL2JnPWBxInBVTTIxLDhTJU0ta2kpc3NMbzNqRmEiaCNIOE4mNTBeI0VJcCM8JC1fajg8
+O0h0MT4qTXM/RmBfJFBZREwiMVEtTWVtL21bQF9CX2soJE9mP0NAWmxjNiMzIillL0EzKCFydE5m
+TzM0NlJyW0cwMVNeLTMqaGg5QWxJKT1vLGo/a1FiK2otNjx1QDFyKkBQKGsyTFBPVUonazhIdUAq
+JElNJFVMXG0jU1IjbDopVEBObE4kaXBzYU5ZJTU7JkhGLUxyUEBHfj5lbmRzdHJlYW0KZW5kb2Jq
+CnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA2MSAwMDAwMCBuIAowMDAwMDAw
+MTAyIDAwMDAwIG4gCjAwMDAwMDAyMDkgMDAwMDAgbiAKMDAwMDAwMDMyMSAwMDAwMCBuIAowMDAw
+MDAwNTYyIDAwMDAwIG4gCjAwMDAwMDA2MzAgMDAwMDAgbiAKMDAwMDAwMDg5MSAwMDAwMCBuIAow
+MDAwMDAwOTUwIDAwMDAwIG4gCnRyYWlsZXIKPDwKL0lEIApbPDgyMmFiYjhkZGMwNDRjMDI0MGY2
+OTdkZWQ4OGI5YmI1Pjw4MjJhYmI4ZGRjMDQ0YzAyNDBmNjk3ZGVkODhiOWJiNT5dCiUgUmVwb3J0
+TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQgLS0gZGlnZXN0IChvcGVuc291cmNlKQoKL0luZm8g
+NiAwIFIKL1Jvb3QgNSAwIFIKL1NpemUgOQo+PgpzdGFydHhyZWYKMTg4MgolJUVPRgo=
+
+--===============3408856944046719587==--

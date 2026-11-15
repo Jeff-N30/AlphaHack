@@ -1,0 +1,14 @@
+case_id: edge03_flight_name
+demo_label: EDGE 03 · Jeff passport + Joe flight
+submission_date: '2026-11-15'
+destination_checklist: fr-schengen-short-stay
+story: 'Supporting docs stay Jeff''s. Only flight_booking is swapped for the PDF from
+  flightedgecase3.eml (traveler BARK/JOE, BEY–CDG 04–10 Feb 2027). Rules should FAIL
+  ID.NAME_MATCH against Jeff''s passport.
+
+  '
+swap:
+  flight_booking: docs/flight_booking_edge.pdf
+expected_flags:
+- ID.NAME_MATCH
+keep_jeff_untouched: true
