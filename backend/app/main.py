@@ -191,6 +191,11 @@ class GloriaActionBody(BaseModel):
     to_email: str | None = Field(
         default=None, description="Correspondent email — required to SMTP send"
     )
+    body_override: str | None = Field(
+        default=None,
+        description="Officer send-back text when a look-item fails (optional)",
+        max_length=20_000,
+    )
 
 
 class OfficerAuthBody(BaseModel):
@@ -303,6 +308,7 @@ def gloria_action(
                 officer=officer,
                 draft_id=body.draft_id,
                 to_email=body.to_email,
+                body_override=body.body_override,
             )
         if action == "review":
             meta = mark_review(
