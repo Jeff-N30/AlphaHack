@@ -39,7 +39,7 @@ _PATTERNS: list[tuple[DocType, list[str]]] = [
     (DocType.cnss_certificate, [r"\bCNSS\b", r"SOCIAL SECURITY"]),
     (DocType.family_register, [r"FAMILY REGISTER", r"EKHRAJ", r"KAID AILY", r"EXTRACT OF FAMILY"]),
     (DocType.travel_plan, [r"TRAVEL PLAN", r"ITINERARY"]),
-    (DocType.photo, [r"SPECIMEN PHOTO"]),
+    (DocType.photo, [r"SPECIMEN\s+(ID\s+)?PHOTO", r"\bID PHOTO\b", r"BIOMETRIC PHOTO"]),
 ]
 
 _NAME_HINTS: dict[str, DocType] = {
@@ -74,8 +74,12 @@ def classify_text(text: str, *, filename: str = "", page: int = 1) -> Classified
         return ClassifiedPage(file=filename, page=page, doc_type=best, confidence=conf)
 
     stem = re.sub(r"[^a-z0-9_]+", "_", Path(filename).stem.lower())
+    # ID photos are usually image-only (no OCR text). Prefer a strong filename
+    # hint over an LLM guess on empty text — never trust filename when body text exists.
+    short_body = len(re.sub(r"\s+", "", upper)) < 40
     for key, dtype in _NAME_HINTS.items():
         if key in stem:
-            return ClassifiedPage(file=filename, page=page, doc_type=dtype, confidence=0.35)
+            conf = 0.75 if (dtype == DocType.photo and short_body) else 0.35
+            return ClassifiedPage(file=filename, page=page, doc_type=dtype, confidence=conf)
 
     return ClassifiedPage(file=filename, page=page, doc_type=DocType.unknown, confidence=0.2)

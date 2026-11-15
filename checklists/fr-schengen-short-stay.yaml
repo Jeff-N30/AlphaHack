@@ -60,7 +60,7 @@ required_documents:
   - { type: family_register,  label: "Ekhraj kaid aily (family register extract)", source: EU }
   - { type: travel_plan,      label: "Tourism: travel plan / itinerary", source: EU }
   - { type: employment_letter, label: "Employer letter", when: "profile == employee", source: EU }
-  - { type: payslip,          label: "Last 3 payslips", min_count: 3, when: "profile == employee", source: EU }
+  - { type: payslip,          label: "Latest payslip", min_count: 1, when: "profile == employee", source: EU }
   - { type: cnss_certificate, label: "CNSS registration", when: "profile == employee", source: EU }
 
 rules:
@@ -249,7 +249,7 @@ rules:
     check: payslips_recent
     mode: code
     docs: [payslip]
-    params: { count: 3, consecutive: true, latest_within_days: 45 }
+    params: { count: 1, consecutive: false, latest_within_days: 45 }
     source: EU
     on_fail: request
 

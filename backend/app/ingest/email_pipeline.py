@@ -17,6 +17,22 @@ from app.storage.files import create_application, load_meta, save_meta, store_up
 logger = logging.getLogger(__name__)
 
 
+def _mark_needs_review_promoted(message: SavedEmail, report: dict[str, Any]) -> None:
+    """Prevent double queue entries for llama_triage → needs_review staging."""
+    if message.source != "llama_triage" or not message.files:
+        return
+    email_dir = Path(message.files[0]).parent
+    if email_dir.parent.name != "needs_review":
+        return
+    marker = email_dir / ".promoted.json"
+    if marker.exists():
+        return
+    marker.write_text(
+        json.dumps({"application_id": report.get("application_id")}, indent=2),
+        encoding="utf-8",
+    )
+
+
 def _attachment_paths(message: SavedEmail) -> list[Path]:
     out: list[Path] = []
     for f in message.files:
@@ -89,10 +105,15 @@ def process_visa_inbox(
         max_messages=max_messages,
     )
     messages = [m for m in messages if m.source in {"subject_filter", "llama_triage"}]
-    results = [
-        process_email_message(m, settings=settings, submission_date=submission_date)
-        for m in messages
-    ]
+    results: list[dict[str, Any]] = []
+    for m in messages:
+        report = process_email_message(
+            m, settings=settings, submission_date=submission_date
+        )
+        results.append(report)
+        # Llama-triage mails are staged under email_inbox/needs_review/<name>_<uid>.
+        # Mark them promoted here so promote_needs_review does not create a 2nd app.
+        _mark_needs_review_promoted(m, report)
     promoted = promote_needs_review(settings=settings, submission_date=submission_date)
     return {
         "count": len(results) + int(promoted.get("count") or 0),

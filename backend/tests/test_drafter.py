@@ -63,3 +63,21 @@ def test_attach_drafts_ready_on_clean_file() -> None:
     assert "Karim" in audit.drafts[0].body
     assert "complete" in audit.drafts[0].body.lower()
     assert "approved" not in audit.drafts[0].body.lower()
+
+
+def test_attach_drafts_ready_on_needs_gloria() -> None:
+    """Look-items only — Vera still needs a ready email body to Approve & email."""
+    audit = _audit(
+        CheckResult(
+            rule_id="PHOTO.ISO",
+            status=Status.NEEDS_HUMAN,
+            message="Manual officer confirmation required",
+            mode="manual",
+        )
+    )
+    audit.outcome = Outcome.NEEDS_GLORIA
+    audit.escalations = 1
+    attach_drafts(audit, applicant_first_name="Jeff")
+    assert len(audit.drafts) == 1
+    assert "Jeff" in audit.drafts[0].body
+    assert "complete" in audit.drafts[0].body.lower()

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * VisaRef Gloria desk — app shell + approval gate UI (owned source in-repo).
+ * VisaRef Vera desk — app shell + approval gate UI (owned source in-repo).
  */
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -113,8 +113,6 @@ const avatar =
   "relative inline-flex size-8 shrink-0 overflow-hidden rounded-full select-none";
 const avatarSquare =
   "relative inline-flex size-8 shrink-0 overflow-hidden rounded-[var(--rb-r-sm,6px)] select-none";
-const avatarFallback =
-  "flex size-full items-center justify-center rounded-[inherit] border border-[rgb(25_33_35/0.1)] dark:border-neutral-100/14 bg-white dark:bg-neutral-900 text-[12px]/[16px] font-medium tabular-nums text-[#41494c] dark:text-neutral-100";
 const frameTitle =
   "min-w-0 truncate text-[14px]/[20px] font-medium text-[#192123] dark:text-neutral-100";
 const panelShell =
@@ -237,7 +235,7 @@ function outcomeCopy(row: ApplicationRow) {
     case "READY_FOR_APPROVAL":
       return "Ready for approval";
     case "NEEDS_GLORIA":
-      return "Needs Gloria";
+      return "Needs Vera";
     case "SEND_BACK":
       return "Send back";
     default:
@@ -723,7 +721,7 @@ const AREA_META: {
     icon: InboxIcon,
     title: "Review queue",
     action: "Seed case",
-    listTitle: "Needs Gloria",
+    listTitle: "Needs Vera",
   },
   {
     id: "approved",
@@ -767,18 +765,18 @@ function WorkspaceBlock() {
         "pointer-events-none flex h-9 w-full items-center gap-2 rounded-[var(--rb-r-sm,6px)] px-1.5 text-left",
       )}
     >
-      <span className={cx(avatarSquare, "size-6 overflow-hidden")}>
+      <span className={cx(avatar, "size-6 overflow-hidden")}>
         <Image
-          src="/visaref-mark.svg"
-          alt=""
+          src="/vera.jpg"
+          alt="Vera"
           width={24}
           height={24}
-          className="size-full"
+          className="size-full object-cover"
         />
       </span>
       <span className="min-w-0 flex-1">
         <span className={cx(typeLabel, text1, "block truncate text-[13px]")}>
-          VisaRef
+          Vera
         </span>
       </span>
     </div>
@@ -823,18 +821,18 @@ function NavigationFrame({
         {collapsed ? (
           <button
             type="button"
-            title="VisaRef"
-            aria-label="VisaRef"
+            title="Vera"
+            aria-label="Vera"
             onClick={onToggleCollapsed}
             className={cx(ghostButton, "size-9 justify-center p-0")}
           >
-            <span className={cx(avatarSquare, "size-6 overflow-hidden")}>
+            <span className={cx(avatar, "size-6 overflow-hidden")}>
               <Image
-                src="/visaref-mark.svg"
-                alt=""
+                src="/vera.jpg"
+                alt="Vera"
                 width={24}
                 height={24}
-                className="size-full"
+                className="size-full object-cover"
               />
             </span>
           </button>
@@ -1000,14 +998,20 @@ function NavigationFrame({
         )}
       >
         <span
-          title="Gloria"
+          title="Vera"
           className={cx(avatar, "size-7 shrink-0 cursor-default")}
         >
-          <span className={cx(avatarFallback, "text-[11px]")}>GL</span>
+          <Image
+            src="/vera.jpg"
+            alt="Vera"
+            width={28}
+            height={28}
+            className="size-full object-cover"
+          />
         </span>
         {!collapsed ? (
           <span className={cx(typeCaption, text3, "min-w-0 truncate")}>
-            Gloria
+            Vera
           </span>
         ) : null}
       </div>
@@ -1158,10 +1162,21 @@ function ApprovalPanel({
           }),
           "",
           "Thank you,",
-          "Gloria – VisaRef Agency",
+          "Vera – Travel Agency",
         ].join("\n")
       : null;
-  const baseDraftBody = draft?.body || lookRejectBody || "";
+  const readyFallbackBody =
+    !draft?.body && !showSendBack
+      ? [
+          "Hello,",
+          "",
+          "Your visa document pack looks complete on our side. We will take the file to TLScontact for your appointment next steps.",
+          "",
+          "Thank you,",
+          "Vera – Travel Agency",
+        ].join("\n")
+      : null;
+  const baseDraftBody = draft?.body || lookRejectBody || readyFallbackBody || "";
   const displayDraftBody = (() => {
     if (!travelHistory) return baseDraftBody;
     const thankYou = baseDraftBody.lastIndexOf("\nThank you,");
@@ -1170,10 +1185,12 @@ function ApprovalPanel({
     }
     return [baseDraftBody, TRAVEL_HISTORY_NOTE].filter(Boolean).join("\n\n");
   })();
-  // Approve = no code FAILs + every look-item OK (ack only — not auto validation).
-  // Send-back = code FAILs (ticks optional) OR Gloria failed a look-item.
+  // Approve = no code FAILs + every look-item OK. Draft body from API or ready fallback.
   const canApprove =
-    !showSendBack && allYouConfirmed && emailOk && Boolean(draft?.body);
+    !showSendBack &&
+    allYouConfirmed &&
+    emailOk &&
+    Boolean(baseDraftBody.trim());
   const canSendEmail = emailOk && Boolean(displayDraftBody.trim());
   const draftIsReady =
     Boolean(draft?.body) &&
@@ -1185,15 +1202,15 @@ function ApprovalPanel({
       postGloriaAction(
         applicationId,
         action,
-        "Gloria",
+        "Vera",
         draft?.id,
         action === "review" ? undefined : toEmail.trim(),
         action === "review"
           ? undefined
-          : travelHistory
+          : travelHistory || action === "approve"
             ? displayDraftBody
             : action === "send_back"
-              ? lookRejectBody || undefined
+              ? lookRejectBody || displayDraftBody || undefined
               : undefined,
       ),
     onSuccess: (data, action) => {
@@ -2231,7 +2248,7 @@ export default function VisaRefShell() {
                   </h2>
                   <p className={cx(typeBodySm, text2, "mt-3")}>
                     Subject filter → attachments → OCR/MRZ → Llama extract → TLS rules.
-                    Approval stays on Gloria&apos;s click.
+                    Approval stays on Vera&apos;s click.
                   </p>
                   <div className="mt-6 flex flex-wrap gap-2">
                     <button

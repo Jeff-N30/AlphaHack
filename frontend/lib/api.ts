@@ -1,4 +1,4 @@
-/** VisaRef backend client (Gloria desk). */
+/** VisaRef backend client (Vera desk). */
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:8000";
@@ -79,7 +79,7 @@ export type ApplicationDetail = {
   } | null;
 };
 
-export async function postOfficerAuth(pin: string, officer = "Gloria") {
+export async function postOfficerAuth(pin: string, officer = "Vera") {
   return request<{ ok: boolean; officer: string; session: string }>(
     "/auth/officer",
     {
@@ -221,7 +221,7 @@ export function filePagePreviewUrl(
 export async function postConfirmToken(
   applicationId: string,
   action: "approve" | "send_back" | "review",
-  officer = "Gloria",
+  officer = "Vera",
 ) {
   return request<{ token: string; expires_in_s: number }>("/confirm-tokens", {
     method: "POST",
@@ -232,7 +232,7 @@ export async function postConfirmToken(
 export async function postGloriaAction(
   id: string,
   action: "approve" | "send_back" | "review",
-  officer = "Gloria",
+  officer = "Vera",
   draftId?: string,
   toEmail?: string,
   bodyOverride?: string,
