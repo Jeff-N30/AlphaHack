@@ -116,21 +116,19 @@ const avatarFallback =
   "flex size-full items-center justify-center rounded-[inherit] border border-[rgb(25_33_35/0.1)] dark:border-neutral-100/14 bg-white dark:bg-neutral-900 text-[12px]/[16px] font-medium tabular-nums text-[#41494c] dark:text-neutral-100";
 const frameTitle =
   "min-w-0 truncate text-[14px]/[20px] font-medium text-[#192123] dark:text-neutral-100";
-const frameMeta =
-  "shrink-0 text-[12px]/[16px] font-medium tabular-nums text-[#5c6568] dark:text-neutral-100/66";
 const panelShell =
   "relative flex min-w-0 flex-col rounded-[var(--rb-r-lg,10px)] border border-[rgb(25_33_35/0.08)] dark:border-neutral-100/14 bg-[#f7f8f8] text-[#192123] dark:text-neutral-100 dark:bg-neutral-900";
 const panel = `${panelShell} overflow-hidden`;
 const panelHead =
   "flex min-h-11 min-w-0 shrink-0 items-center gap-2.5 px-4 has-[button]:pe-2";
 const panelBody =
-  "mx-1 mb-1 flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-[rgb(25_33_35/0.06)] bg-white shadow-[0_1px_2px_rgb(25_33_35/0.03)] [&:has(+*)]:mb-0 dark:border-neutral-100/8 dark:bg-neutral-950";
+  "mx-1 mb-1 flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-[rgb(25_33_35/0.08)] bg-white [&:has(+*)]:mb-0 dark:border-neutral-100/8 dark:bg-neutral-950";
 const panelFoot =
   "flex min-h-12 min-w-0 items-center gap-2 px-4 py-3 text-[13px]/[18px] text-[#5c6568] dark:text-neutral-100/66 has-[button]:justify-end";
 const groupHead =
-  "flex items-center gap-2 px-4 pt-4 pb-1 text-[12px]/[16px] font-medium text-[#41494c] dark:text-neutral-100/80";
+  "flex h-10 items-center gap-3 px-6 pt-2 text-[12px]/[16px] font-medium text-[#5c6568] dark:text-neutral-100/70";
 const countPill =
-  "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[rgb(25_33_35/0.06)] px-1.5 text-[12px]/[16px] font-medium tabular-nums text-[#5c6568] dark:bg-neutral-100/10 dark:text-neutral-100/70";
+  "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[rgb(25_33_35/0.05)] px-1.5 text-[12px]/[16px] font-medium tabular-nums text-[#5c6568] dark:bg-neutral-100/10 dark:text-neutral-100/70";
 const tag =
   "inline-flex h-5 shrink-0 items-center rounded-[5px] px-1.5 text-[12px]/[16px] font-medium";
 const tagFail =
@@ -141,8 +139,13 @@ const tagOk =
   "bg-[rgb(25_33_35/0.06)] text-[#41494c] dark:bg-neutral-100/10 dark:text-neutral-100/80";
 const issueGlyph =
   "mt-px flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-[oklch(58%_0.19_26/0.09)] text-[oklch(50%_0.18_26)] dark:bg-[oklch(58%_0.19_26/0.2)] dark:text-[oklch(76%_0.14_26)]";
+const paneHead =
+  "flex h-12 min-w-0 shrink-0 items-center gap-2 border-b border-[rgb(25_33_35/0.08)] bg-white px-6 dark:border-neutral-100/8 dark:bg-neutral-950";
+const paneTitle =
+  "min-w-0 truncate text-[14px]/[20px] font-semibold tracking-[-0.005em] text-[#192123] dark:text-neutral-100";
+const hairT = "border-t border-[rgb(25_33_35/0.08)] dark:border-neutral-100/8";
 const docChip =
-  "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[rgb(25_33_35/0.1)] bg-white px-2.5 text-[12px]/[16px] font-medium text-[#41494c] dark:border-neutral-100/14 dark:bg-neutral-900 dark:text-neutral-100/80";
+  "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[rgb(25_33_35/0.08)] bg-white px-2.5 text-[12px]/[16px] font-medium text-[#41494c] dark:border-neutral-100/14 dark:bg-neutral-900 dark:text-neutral-100/80";
 const overlayEnter =
   "transition-opacity duration-[160ms] ease-[cubic-bezier(0.2,0,0,1)] starting:opacity-0 motion-reduce:transition-none";
 const sidebarSurface =
@@ -178,7 +181,7 @@ const transition =
   "transition-[color,background-color,border-color,box-shadow,outline-color,opacity,scale] duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] active:duration-[60ms]";
 const insetBody = "bg-white dark:bg-neutral-950";
 const inkSlot =
-  "inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[rgb(25_33_35/0.1)] dark:border-neutral-100/14 bg-white dark:bg-neutral-900 px-2 text-[12px]/[16px] font-medium tabular-nums text-[#41494c] shadow-[0_1px_1px_rgb(25_33_35/0.04)] dark:text-neutral-100";
+  "inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-[6px] bg-[rgb(25_33_35/0.05)] dark:bg-neutral-100/10 px-2 text-[12px]/[16px] font-medium tabular-nums text-[#5c6568] dark:text-neutral-100/70";
 const disclosureRow =
   "group -mx-2 flex min-h-8 max-w-[calc(100%+16px)] min-w-0 cursor-pointer items-center gap-2 self-start rounded-[var(--rb-r-sm,6px)] px-2 text-left text-[13px]/[18px] text-neutral-900/80 dark:text-neutral-100/80 transition-[background-color] duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)] hover:bg-neutral-900/5 active:bg-neutral-900/8 dark:hover:bg-neutral-100/5 dark:active:bg-neutral-100/8 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--rb-accent,oklch(20.5%_0_0))] dark:focus-visible:outline-[var(--rb-accent,oklch(100%_0_0))]";
 const toolWell =
@@ -1018,10 +1021,10 @@ function DocPagePreview({
     <div
       className={cx(
         "flex min-h-0 flex-1 flex-col bg-[var(--rb-bg,white)] dark:bg-neutral-950",
-        !compact && "border-t border-neutral-900/8 dark:border-neutral-100/8",
+        !compact && "",
       )}
     >
-      <div className="flex shrink-0 items-center gap-2 px-3 py-2">
+      <div className="flex h-11 shrink-0 items-center gap-2 bg-[#f7f8f8] px-6 dark:bg-neutral-950">
         <span className={cx("text-[12px]/[16px] font-medium", text2, "min-w-0 flex-1 truncate")}>
           {filename}
           {isPdf ? " · page 1" : ""}
@@ -1035,7 +1038,7 @@ function DocPagePreview({
           Original
         </a>
       </div>
-      <div className="relative min-h-0 flex-1 bg-[#f4f5f5] p-3 dark:bg-neutral-950">
+      <div className="relative min-h-0 flex-1 bg-[#f7f8f8] px-6 pb-6 dark:bg-neutral-950">
         {status === "loading" ? (
           <div
             aria-hidden
@@ -1060,7 +1063,7 @@ function DocPagePreview({
               if (el?.complete && el.naturalWidth > 0) setStatus("ok");
             }}
             className={cx(
-              "relative z-0 mx-auto h-full max-h-full w-full object-contain object-top drop-shadow-[0_1px_2px_rgb(25_33_35/0.12)] transition-opacity duration-150",
+              "relative z-0 mx-auto h-full max-h-full w-full object-contain object-center drop-shadow-[0_0_0.5px_rgb(25_33_35/0.35)] transition-opacity duration-150",
               status === "ok" ? "opacity-100" : "opacity-0",
             )}
           />
@@ -1212,7 +1215,7 @@ function ApprovalPanel({
       transition={{ duration: 0.22, ease: EASE_OUT }}
       className="flex h-full min-h-0 flex-col"
     >
-      <div className="shrink-0 border-b border-[rgb(25_33_35/0.08)] px-5 pt-4 pb-3.5 dark:border-neutral-100/8 sm:px-6">
+      <div className="shrink-0 border-b border-[rgb(25_33_35/0.08)] px-6 pt-5 pb-4 dark:border-neutral-100/8">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <h2 className={cx(typeHeadingSm, text1, "truncate")}>
@@ -1233,7 +1236,7 @@ function ApprovalPanel({
           </div>
           <span
             className={cx(
-              "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-[rgb(25_33_35/0.08)] bg-white px-2.5 text-[12px]/[16px] font-medium dark:border-neutral-100/14 dark:bg-neutral-900",
+              "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] border border-[rgb(25_33_35/0.08)] bg-white px-2 text-[12px]/[16px] font-medium dark:border-neutral-100/14 dark:bg-neutral-900",
               TONE[plain.tone],
             )}
           >
@@ -1246,9 +1249,9 @@ function ApprovalPanel({
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 xl:grid xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto xl:grid xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
         {detailQuery.isLoading ? (
-          <section className={panel} aria-busy="true" aria-label="Loading file">
+          <section className={cx(panel, "m-6")} aria-busy="true" aria-label="Loading file">
             <div className={cx(panelHead, "h-10")}>
               <span className={cx(skeleton, "h-5 w-20")} />
               <span className={cx(skeleton, "h-4 w-24")} />
@@ -1275,19 +1278,19 @@ function ApprovalPanel({
             </div>
           </section>
         ) : (
-          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)]">
-            <div className="-mx-1 flex flex-col gap-4 px-1 pb-1 [scrollbar-width:thin] xl:min-h-0 xl:overflow-y-auto">
-            <section className={cx(panelShell, "shrink-0")}>
-              <div className={cx(panelHead, "h-11")}>
+          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:divide-x xl:divide-[rgb(25_33_35/0.08)] dark:divide-neutral-100/8">
+            <div className="flex flex-col bg-white [scrollbar-width:thin] dark:bg-neutral-950 xl:min-h-0 xl:overflow-y-auto">
+            <section className="relative flex shrink-0 flex-col">
+              <div className={cx(paneHead, "sticky top-0 z-20")}>
+                <span className={paneTitle}>Decision</span>
                 <span className={inkSlot}>Your call</span>
-                <span className={cx(frameTitle, "flex-1")}>Decision</span>
               </div>
-              <div className={cx(panelBody, "mb-0 gap-0 px-0 pt-0 pb-0")}>
-                <div className="flex items-start gap-3 px-4 py-4">
+              <div className="flex min-w-0 flex-col">
+                <div className="flex items-start gap-3.5 px-6 py-6">
                   <span
                     aria-hidden
                     className={cx(
-                      "flex size-8 shrink-0 items-center justify-center rounded-[8px]",
+                      "-mt-1 flex size-8 shrink-0 items-center justify-center rounded-[8px]",
                       plain.auto === "failed"
                         ? "bg-[oklch(58%_0.19_26/0.09)]"
                         : plain.auto === "attention"
@@ -1312,8 +1315,8 @@ function ApprovalPanel({
                     )}
                   />
                   </span>
-                  <div className="min-w-0 pt-px">
-                    <p className={cx("text-[14px]/[20px] font-semibold tracking-[-0.005em]", text1)}>
+                  <div className="min-w-0">
+                    <p className={cx("text-[16px]/[24px] font-semibold tracking-[-0.01em]", text1)}>
                       {plain.auto === "passed"
                         ? "Automated checks passed"
                         : plain.auto === "failed"
@@ -1322,7 +1325,7 @@ function ApprovalPanel({
                             ? "Needs your judgment"
                             : "Review required"}
                     </p>
-                    <p className={cx("text-[13px]/[18px]", text3, "mt-0.5 text-pretty")}>
+                    <p className={cx("text-[13px]/[20px]", text3, "mt-1 text-pretty")}>
                       {plain.body}
                     </p>
                   </div>
@@ -1331,15 +1334,15 @@ function ApprovalPanel({
                 {issues.missingDocs.length > 0 ||
                 issues.mustFix.length > 0 ||
                 issues.youCheck.length > 0 ? (
-                  <div className="space-y-0 pb-1">
+                  <div className="space-y-0 pb-2">
                     {issues.missingDocs.length > 0 ? (
-                      <div className="border-t border-[rgb(25_33_35/0.06)] dark:border-neutral-100/8">
+                      <div className={hairT}>
                         <p className={groupHead}>
-                          <span aria-hidden className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" />
+                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" /></span>
                           Missing from pack
-                          <span className={countPill}>{issues.missingDocs.length}</span>
+                          <span className={cx(countPill, "-ms-1")}>{issues.missingDocs.length}</span>
                         </p>
-                        <ul className="px-1 pb-1">
+                        <ul className="pb-2">
                           {issues.missingDocs.map((label) => {
                             const linked = fileForMissingLabel(files, label);
                             return (
@@ -1349,7 +1352,7 @@ function ApprovalPanel({
                                   disabled={!linked}
                                   onClick={() => openDoc(linked)}
                                   className={cx(
-                                    "flex w-full items-start gap-3 rounded-[6px] px-3 py-2.5 text-left",
+                                    "flex w-full items-start gap-3 px-6 py-3 text-left",
                                     linked
                                       ? cx(
                                           hoverFill,
@@ -1392,13 +1395,13 @@ function ApprovalPanel({
                     ) : null}
 
                     {issues.mustFix.length > 0 ? (
-                      <div className="border-t border-[rgb(25_33_35/0.06)] dark:border-neutral-100/8">
+                      <div className={hairT}>
                         <p className={groupHead}>
-                          <span aria-hidden className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" />
+                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" /></span>
                           Ask applicant to fix
-                          <span className={countPill}>{issues.mustFix.length}</span>
+                          <span className={cx(countPill, "-ms-1")}>{issues.mustFix.length}</span>
                         </p>
-                        <ul className="px-1 pb-1">
+                        <ul className="pb-2">
                           {issues.mustFix.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? i);
                             const copy = ruleCopy(r.rule_id ?? r.id);
@@ -1410,7 +1413,7 @@ function ApprovalPanel({
                                   disabled={!linked.length}
                                   onClick={() => openDocs(linked)}
                                   className={cx(
-                                    "flex w-full items-start gap-3 rounded-[6px] px-3 py-2.5 text-left",
+                                    "flex w-full items-start gap-3 px-6 py-3 text-left",
                                     linked.length
                                       ? cx(
                                           hoverFill,
@@ -1452,16 +1455,16 @@ function ApprovalPanel({
                     ) : null}
 
                     {issues.youCheck.length > 0 ? (
-                      <div className="border-t border-[rgb(25_33_35/0.06)] dark:border-neutral-100/8">
+                      <div className={hairT}>
                         <p className={groupHead}>
-                          <span aria-hidden className="size-1.5 rounded-full bg-[oklch(72%_0.15_70)]" />
+                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(72%_0.15_70)]" /></span>
                           You confirm
-                          <span className={countPill}>
+                          <span className={cx(countPill, "-ms-1")}>
                           {youCheckIds.filter((id) => confirmedIds[id]).length}/
                           {issues.youCheck.length}
                           </span>
                         </p>
-                        <ul className="px-1 pb-1">
+                        <ul className="pb-2">
                           {issues.youCheck.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? `you-${i}`);
                             const copy = ruleCopy(r.rule_id ?? r.id);
@@ -1478,7 +1481,7 @@ function ApprovalPanel({
                               <li key={id}>
                                 <div
                                   className={cx(
-                                    "flex w-full items-start gap-3 rounded-[6px] px-3 py-2.5",
+                                    "flex w-full items-start gap-3 px-6 py-3",
                                     checked && "bg-[rgb(25_33_35/0.03)] dark:bg-neutral-100/[0.04]",
                                   )}
                                 >
@@ -1546,12 +1549,12 @@ function ApprovalPanel({
                     ) : null}
                   </div>
                 ) : (
-                  <p className={cx(typeBodySm, text2, "border-t border-[rgb(25_33_35/0.06)] px-4 py-3.5 dark:border-neutral-100/8")}>
+                  <p className={cx(typeBodySm, text2, hairT, "px-6 py-4")}>
                     No issues — approve if the file looks complete.
                   </p>
                 )}
 
-                <div className="border-t border-[rgb(25_33_35/0.06)] px-4 py-1.5 dark:border-neutral-100/8">
+                <div className={cx(hairT, "px-6 py-2")}>
                   <button
                     type="button"
                     aria-expanded={showTech}
@@ -1593,7 +1596,7 @@ function ApprovalPanel({
                 </div>
               </div>
               {!alreadyDecided ? (
-                <div className="sticky bottom-0 z-10 -mx-px -mb-px flex flex-col gap-2.5 rounded-b-[var(--rb-r-lg,10px)] border-x border-b border-[rgb(25_33_35/0.08)] bg-[#f7f8f8]/95 px-4 pt-3 pb-3.5 backdrop-blur-sm dark:border-neutral-100/14 dark:bg-neutral-900/95">
+                <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgb(25_33_35/0.08)] bg-white px-6 pt-4 pb-5 shadow-[0_-8px_16px_-12px_rgb(25_33_35/0.12)] dark:border-neutral-100/8 dark:bg-neutral-950">
                   <div className="flex min-w-0 items-end gap-2">
                   <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <span className={cx("text-[12px]/[16px] font-medium", text3)}>
@@ -1605,14 +1608,14 @@ function ApprovalPanel({
                       onChange={(e) => setToEmail(e.target.value)}
                       placeholder="applicant@email.com"
                       className={cx(
-                        "h-8 w-full rounded-[var(--rb-r-sm,6px)] border border-[rgb(25_33_35/0.14)] bg-white px-3 text-[13px] text-[#192123] shadow-[0_1px_1px_rgb(25_33_35/0.04)] outline-none transition-[border-color,box-shadow] duration-[120ms] placeholder:text-[#5c6568]/70 focus-visible:border-[rgb(25_33_35/0.4)] focus-visible:shadow-[0_0_0_3px_rgb(25_33_35/0.06)] dark:border-neutral-100/20 dark:bg-neutral-950 dark:text-neutral-100",
+                        "h-9 w-full rounded-[var(--rb-r-sm,6px)] border border-[rgb(25_33_35/0.14)] bg-white px-3 text-[13px] text-[#192123] outline-none transition-[border-color,box-shadow] duration-[120ms] placeholder:text-[#5c6568]/70 focus-visible:border-[rgb(25_33_35/0.4)] focus-visible:shadow-[0_0_0_3px_rgb(25_33_35/0.06)] dark:border-neutral-100/20 dark:bg-neutral-950 dark:text-neutral-100",
                       )}
                     />
                   </label>
                   <div className="flex shrink-0 items-center justify-end gap-2">
                     <button
                       type="button"
-                      className={cx(secondaryButton, buttonSm)}
+                      className={cx(secondaryButton, buttonSm, "h-9")}
                       disabled={actionMut.isPending}
                       onClick={() => actionMut.mutate("review")}
                     >
@@ -1621,7 +1624,7 @@ function ApprovalPanel({
                     {hasErrors ? (
                       <button
                         type="button"
-                        className={cx(primaryButton, buttonSm)}
+                        className={cx(primaryButton, buttonSm, "h-9 px-3.5")}
                         disabled={actionMut.isPending || !canSendEmail}
                         onClick={() => actionMut.mutate("send_back")}
                         title="SMTP the draft below to this address"
@@ -1640,7 +1643,7 @@ function ApprovalPanel({
                     ) : (
                       <button
                         type="button"
-                        className={cx(primaryButton, buttonSm)}
+                        className={cx(primaryButton, buttonSm, "h-9 px-3.5")}
                         disabled={actionMut.isPending || !canApprove}
                         onClick={() => actionMut.mutate("approve")}
                         title="Mark ready + SMTP the ready draft"
@@ -1660,20 +1663,20 @@ function ApprovalPanel({
                   </div>
                   </div>
                   {!emailOk ? (
-                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-1.5")}>
+                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-2 pt-0.5")}>
                       <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-current" />
                       Enter the correspondent email — the button sends SMTP from your Gmail
                     </p>
                   ) : null}
                   {!hasErrors && !allYouConfirmed ? (
-                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-1.5")}>
+                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-2 pt-0.5")}>
                       <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-current" />
                       Tick every “You confirm” item before approving
                     </p>
                   ) : null}
                 </div>
               ) : (
-                <div className={panelFoot}>
+                <div className={cx(panelFoot, hairT, "px-6")}>
                   <p className={cx(typeBodySm, text2)}>
                     {meta?.human_action || meta?.status}
                   </p>
@@ -1684,11 +1687,12 @@ function ApprovalPanel({
             {draft?.body ? (
               <section
                 id="applicant-draft"
-                className={cx(panel, "shrink-0")}
+                className={cx(hairT, "flex shrink-0 flex-col bg-white dark:bg-neutral-950")}
               >
-                <div className={cx(panelHead, "h-11")}>
-                  <span className={inkSlot}>Draft</span>
-                  <span className={cx(frameTitle, "flex-1")}>
+                <div className="flex h-12 min-w-0 items-center gap-2 px-6">
+                  <span className={cx("text-[13px]/[20px]", text3)}>Draft</span>
+                  <span aria-hidden className={cx("text-[13px]/[20px]", text3)}>/</span>
+                  <span className={cx(paneTitle, "flex-1")}>
                     {draftIsReady
                       ? "Ready-for-TLS message"
                       : "Send-back message"}
@@ -1697,17 +1701,17 @@ function ApprovalPanel({
                     {draft.status || "DRAFT"}
                   </span>
                 </div>
-                <div className={cx(panelBody, "px-4 pt-3.5 pb-3")}>
+                <div className="mx-6 mb-6 flex min-w-0 flex-col rounded-[8px] border border-[rgb(25_33_35/0.08)] px-5 pt-5 pb-4 dark:border-neutral-100/8">
                   <pre
                     className={cx(
-                      "text-[13px]/[20px]",
+                      "text-[13px]/[1.6]",
                       text1,
                       "whitespace-pre-wrap font-sans",
                     )}
                   >
                     {draft.body}
                   </pre>
-                  <p className={cx(typeCaption, text3, "mt-3 border-t border-[rgb(25_33_35/0.06)] pt-2.5 dark:border-neutral-100/8")}>
+                  <p className={cx(typeCaption, text3, hairT, "mt-4 pt-3")}>
                     {emailOk
                       ? `Confirm above emails this to ${toEmail.trim()} via Gmail SMTP.`
                       : "Enter the applicant email above — confirm sends it directly."}
@@ -1716,33 +1720,27 @@ function ApprovalPanel({
               </section>
             ) : null}
             </div>
-            <div className="flex min-h-[32rem] flex-col xl:min-h-0">
+            <div className="flex min-h-[32rem] flex-col bg-white dark:bg-neutral-950 xl:min-h-0">
             {files.length > 0 ? (
               <section
                 ref={docsRef}
                 className={cx(
-                  panel,
-                  "flex h-full min-h-0 flex-1 flex-col transition-[box-shadow,border-color] duration-300",
+                  "flex h-full min-h-0 flex-1 flex-col transition-[box-shadow] duration-300",
                   docsFlash &&
-                    "border-neutral-900/35 shadow-[0_0_0_2px_rgb(0_0_0/0.08)] dark:border-neutral-100/40 dark:shadow-[0_0_0_2px_rgb(255_255_255/0.12)]",
+                    "shadow-[inset_0_0_0_2px_rgb(25_33_35/0.14)] dark:shadow-[inset_0_0_0_2px_rgb(255_255_255/0.14)]",
                 )}
               >
-                <div className={cx(panelHead, "h-11")}>
-                  <span className={inkSlot}>Docs</span>
-                  <span className={cx(frameTitle, "flex-1")}>
+                <div className={paneHead}>
+                  <span className={paneTitle}>
                     Images &amp; PDFs
                   </span>
+                  <span className={cx(inkSlot, "me-auto")}>Docs</span>
                   <span className={countPill}>
                     {files.length}
                   </span>
                 </div>
-                <div
-                  className={cx(
-                    panelBody,
-                    "mb-0 flex min-h-0 flex-1 flex-col gap-0 p-0",
-                  )}
-                >
-                  <ul className="flex shrink-0 gap-1.5 overflow-x-auto px-3 py-2.5 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)]">
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <ul className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-[rgb(25_33_35/0.08)] px-6 py-3 dark:border-neutral-100/8 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)]">
                     {files.map((f) => (
                       <li key={f} className="shrink-0">
                         <button
@@ -1756,7 +1754,7 @@ function ApprovalPanel({
                             focusRing,
                             "max-w-[11rem] cursor-pointer truncate",
                             previewFiles.includes(f) &&
-                              "border-[#192123] text-[#192123] shadow-[0_0_0_1px_#192123_inset] dark:border-neutral-100/60 dark:text-neutral-100",
+                              "border-[#192123] text-[#192123] dark:border-neutral-100/70 dark:text-neutral-100",
                           )}
                         >
                           {f}
@@ -2186,39 +2184,29 @@ export default function VisaRefShell() {
               </main>
             ) : (
               <div className="flex h-full min-h-0 flex-col">
-                {/* View bar — the page title lives once, in the top bar */}
-                <div className="shrink-0 border-b border-[rgb(25_33_35/0.08)] px-5 py-2.5 dark:border-neutral-100/8 sm:px-6">
-                  <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                    <div className="min-w-0">
-                      <p className={cx(typeBodySm, text3, "truncate")}>
-                        AI extracts and rules score the file. You approve or send back —
-                        human lock only.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={inkSlot}>{area.listTitle}</span>
-                      <span className={cx(typeCaption, text3)}>
+                {/* One surface: queue | gate — the page title lives once, in the top bar */}
+                <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,332px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,376px)_minmax(0,1fr)]">
+                  <div className="flex min-h-0 flex-col border-b border-[rgb(25_33_35/0.08)] lg:border-r lg:border-b-0 dark:border-neutral-100/8">
+                    <div className={cx(paneHead, "px-5")}>
+                      <span className={paneTitle}>Files</span>
+                      <span className={cx(typeCaption, text3, "me-auto")}>
                         {listQuery.isLoading ? "…" : `${filtered.length} in view`}
                       </span>
+                      <span className={inkSlot}>{area.listTitle}</span>
                     </div>
-                  </div>
-                </div>
-
-                {/* One surface: queue | gate */}
-                <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,332px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,376px)_minmax(0,1fr)]">
-                  <div className="relative min-h-0 border-b border-[rgb(25_33_35/0.08)] lg:border-r lg:border-b-0 dark:border-neutral-100/8">
+                    <div className="relative min-h-0 flex-1">
                     <main
                       ref={contentRef}
                       onScroll={onContentScroll}
-                      className="h-full min-h-0 overflow-y-auto p-4 sm:p-5"
+                      className="h-full min-h-0 overflow-y-auto"
                     >
                       {listQuery.isError ? (
-                        <p className={cx(typeBodySm, statusFail, "px-2 py-3")}>
+                        <p className={cx(typeBodySm, statusFail, "px-5 py-4")}>
                           {(listQuery.error as Error).message}
                         </p>
                       ) : listQuery.isLoading ? (
                         <div
-                          className={panel}
+                          className={cx(panel, "m-4")}
                           aria-busy="true"
                           aria-label="Loading queue"
                         >
@@ -2244,7 +2232,7 @@ export default function VisaRefShell() {
                           </ul>
                         </div>
                       ) : filtered.length === 0 ? (
-                        <div className={cx(panel, "h-full")}>
+                        <div className={cx(panel, "m-4 min-h-[calc(100%-2rem)]")}>
                           <div className="px-4 pt-4 pb-2">
                             <p className={emptyTitle}>Queue is clear</p>
                             <p className={cx(emptyDescription, "mt-1")}>
@@ -2319,12 +2307,8 @@ export default function VisaRefShell() {
                           </ul>
                         </div>
                       ) : (
-                        <div className={cx(panel, "overflow-hidden")}>
-                          <div className={cx(panelHead, "h-10")}>
-                            <span className={cx(frameTitle, "flex-1")}>Files</span>
-                            <span className={frameMeta}>{filtered.length}</span>
-                          </div>
-                          <ul className={cx(panelBody, "mb-1", rowsRuled)}>
+                        <div>
+                          <ul className={cx(rowsRuled, "border-b border-[rgb(25_33_35/0.08)] dark:border-neutral-100/8")}>
                             {filtered.map((row) => {
                               const selected = selectedId === row.id;
                               return (
@@ -2338,19 +2322,10 @@ export default function VisaRefShell() {
                                       pressedFill,
                                       transition,
                                       focusRingInset,
-                                      "group relative flex w-full cursor-pointer items-start gap-3 px-3 py-3 text-left",
-                                      selected && "bg-[rgb(25_33_35/0.05)] before:absolute before:inset-y-2 before:left-0 before:w-[2px] before:rounded-full before:bg-[#192123] dark:bg-neutral-100/9 dark:before:bg-neutral-100",
+                                      "group relative flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left",
+                                      selected && "bg-[#f7f8f8] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[#192123] hover:bg-[#f3f4f4] dark:bg-neutral-100/9 dark:before:bg-neutral-100",
                                     )}
                                   >
-                                    <span className={cx(avatarSquare, "mt-px size-7 shrink-0")}>
-                                      <span className={cx(avatarFallback, text3)}>
-                                        <HugeiconsIcon
-                                          icon={PassportIcon}
-                                          size={13}
-                                          strokeWidth={1.8}
-                                        />
-                                      </span>
-                                    </span>
                                     <span className="min-w-0 flex-1">
                                       <span className="flex min-w-0 items-baseline gap-2">
                                         <span className={cx(typeRowTitle, text1, "min-w-0 flex-1 truncate")}>
@@ -2360,14 +2335,16 @@ export default function VisaRefShell() {
                                           {row.submission_date ?? "—"}
                                         </span>
                                       </span>
+                                      <span className="mt-1 flex min-w-0 items-baseline gap-3">
                                       {row.trip_summary ? (
-                                        <span className={cx(typeCaption, text3, "mt-0.5 block truncate")}>
+                                        <span className={cx(typeCaption, text3, "min-w-0 flex-1 truncate")}>
                                           {row.trip_summary}
                                         </span>
                                       ) : null}
-                                      <span className={cx(typeCaption, TONE[toneFor(row)], "mt-1.5 inline-flex items-center gap-1.5 font-medium")}>
-                                        <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                                      <span className={cx(typeCaption, TONE[toneFor(row)], "ms-auto inline-flex shrink-0 items-center gap-1.5 font-medium")}>
+                                        <span aria-hidden className="size-1.5 -translate-y-px rounded-full bg-current" />
                                         {statusCopy(row)}
+                                      </span>
                                       </span>
                                     </span>
                                   </button>
@@ -2394,6 +2371,11 @@ export default function VisaRefShell() {
                         contentEdges.end ? "opacity-100" : "opacity-0",
                       )}
                     />
+                    </div>
+                    <p className={cx(typeCaption, text3, hairT, "shrink-0 px-5 py-3 text-pretty")}>
+                      AI extracts and rules score the file. You approve or send back —
+                      human lock only.
+                    </p>
                   </div>
 
                   <div className="relative min-h-[380px] lg:min-h-0">
@@ -2411,7 +2393,7 @@ export default function VisaRefShell() {
                           animate={{ opacity: 1, y: 0 }}
                           exit={reduceMotion ? undefined : { opacity: 0 }}
                           transition={{ duration: 0.22, ease: EASE_OUT }}
-                          className="flex h-full min-h-0 flex-col overflow-y-auto p-4 sm:p-5"
+                          className="flex h-full min-h-0 flex-col overflow-y-auto bg-white p-6 dark:bg-neutral-950"
                         >
                           <div className={cx(panel, "flex flex-1 flex-col")}>
                             <div className={cx(panelHead, "h-11")}>
