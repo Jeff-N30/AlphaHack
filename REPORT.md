@@ -1,6 +1,7 @@
 # Vera  
 **AlphaHack 2026 · goatpackers**  
-*Vera works the file. Gloria makes the call.*
+*Vera works the file. Gloria makes the call.*  
+*Boring PDF grind → automated. AI bill → $0.*
 
 ---
 
@@ -22,23 +23,26 @@ In Lebanon, a France Schengen short-stay application is not one form. It is a **
 
 If **one** piece is wrong — insurance in USD, bank too old, hotel ending a day early, passenger name ≠ passport, trip filed too late — the file is not “almost fine.” It is a **failed appointment**, a stressed client, and an agency that looks incompetent.
 
-### 1.2 What happens inside the agency today
+### 1.2 The boring, repetitive PDF grind
 
-Gloria runs the visa desk. She is the manager — the person clients trust, the person who will eventually walk a folder into TLScontact. Around her, employees open PDFs and photos all day.
+Gloria runs the visa desk. She is the manager — the person clients trust, the person who will eventually walk a folder into TLScontact. Around her, employees drown in **the same boring PDF loop**, file after file, day after day.
 
-Without an agent, every file looks like this:
+It is not creative work. It is not “advisory.” It is **repetitive document labor**:
 
 1. Open passport. Squint at MRZ. Hope the scan is readable.  
 2. Open the form. Compare surname spelling character by character.  
 3. Open flight. Check BEY→CDG dates against hotel and insurance.  
 4. Open bank. Count months. Check issue date. Guess if the stamp “counts.”  
 5. Open insurance. Is EUR 30k printed, or is it USD dressed up as “enough”?  
-6. Write a WhatsApp / email to the client listing what is missing — from memory.  
-7. Repeat when the client sends version 2, 3, 4.
+6. Flip back to the passport. Flip to the hotel. Flip to the bank again.  
+7. Write an email listing what is missing — from memory.  
+8. Client sends version 2 → **repeat the entire stack**.  
 
-**Configured reality in our product baseline:** about **45 minutes of human time per messy file**. That is not “AI hype.” That is how long careful cross-checking takes when a person is the OCR engine, the rules engine, and the email drafter at once.
+Same clicks. Same fields. Same checklist. **Boring. Repetitive. Easy to mess up when you are tired.**
 
-At ten files a day, that is **seven hours** of document archaeology — before Gloria has done the judgment work that only a manager should do.
+**Configured reality in our product baseline:** about **45 minutes of human time per messy file**. That is how long careful cross-checking takes when a person is the OCR engine, the rules engine, and the email drafter at once.
+
+At ten files a day, that is **seven hours** of PDF archaeology — before Gloria has done the judgment work that only a manager should do.
 
 ### 1.3 Who pays for the mistakes
 
@@ -54,10 +58,12 @@ The industry does **not** need a model that predicts embassy mood. It needs a sy
 
 ### 1.4 The human cost for employees
 
-Repetitive PDF checking burns people out. Smart juniors become tired copy-paste machines. Gloria, as manager, cannot coach or sell or handle exceptions because she is stuck in the same stack as everyone else.
+**Boring repetitive PDF work burns people out.** Smart juniors become tired page-flippers. They did not join a travel agency to re-read closing balances and MRZ lines a hundred times a week. Gloria, as manager, cannot coach, sell, or handle real exceptions because she is trapped in the same stack.
+
+Meanwhile the industry’s default “AI” answer is: pay a cloud LLM vendor per token, leak passport scans to a third party, and hope the model does not invent a PASS.
 
 **The problem, in one line:**  
-visa desks drown in consistent, checkable work that humans should not be doing by hand — while the work that *requires* a human (judgment, client trust, TLS) gets starved.
+visa desks drown in boring, checkable PDF work that humans should not grind by hand — while the work that *requires* a human (judgment, client trust, TLS) gets starved — and paying for cloud AI makes that worse, not cheaper.
 
 ---
 
@@ -72,14 +78,16 @@ visa desks drown in consistent, checkable work that humans should not be doing b
 
 Vera prepares. Gloria decides. That split is the entire product philosophy.
 
-### 2.2 What Vera does
+### 2.2 What Vera does (AI agent + orchestration)
+
+Vera is not a chatbot pasted on a folder. She is an **orchestrated agent** whose eyes are **local Llama 3.2 (Ollama)** and whose judgment is **code + Gloria**.
 
 1. Pulls visa mail (or upload / seed packs)  
-2. Classifies attachments; OCRs scans; extracts fields with **local** Ollama `llama3.2`  
-3. Reads passport **MRZ with ICAO 9303 check digits** (checksums — not vibes)  
-4. Runs pure Python checks from the France/TLS **YAML checklist**  
-5. Builds an audit: PASS / FAIL / NEEDS_HUMAN with evidence  
-6. Drafts ready or send-back email text  
+2. **Orchestrates** the pack: classify pages → OCR scans → call Llama per document type  
+3. Llama returns **typed fields only** (names, dates, amounts, coverages) — never PASS/FAIL  
+4. Passport identity: **MRZ + ICAO 9303 check digits** (tooling, not model vibes)  
+5. Python rules run the France/TLS checklist on those facts  
+6. Builds an audit + drafts ready / send-back email text (Llama helps draft; Gloria owns Send)  
 7. Stops. She does **not** send. She does **not** approve. She does **not** upload to TLS.
 
 ### 2.3 What Gloria does (human intervention)
@@ -97,11 +105,12 @@ If Gloria does not click, nothing leaves the agency. That is intentional.
 
 | Before | After |
 |---|---|
-| ~45 min / file of manual cross-check | Vera digests in minutes; Gloria spends ~**2–5 min** on look-items + decision |
+| ~45 min / file of **boring PDF flipping** | Vera digests in minutes; Gloria spends ~**2–5 min** on look-items + decision |
 | Juniors exhausted on repetitive reads | Staff work Vera’s queue: clear fails vs look-items |
 | Gloria buried in every page | Gloria intervenes where Vera escalates |
 | Send-backs written from scratch | Vera drafts; Gloria edits and sends |
 | Errors found at TLS | Errors found **before** the appointment |
+| Pay cloud AI per token (or pay nothing and stay manual) | **$0** to run Vera’s brain — free local Ollama |
 
 **Order of magnitude:** for files Vera can fully score, human minutes drop on the order of **~80–90%**. Hard edge cases still escalate — that is a feature. Employees keep their judgment for what matters; Vera eats the grind.
 
@@ -129,96 +138,128 @@ If Gloria does not click, nothing leaves the agency. That is intentional.
 
 ---
 
-## 4. End-to-end pipeline
+## 4. How Llama orchestrates the file
 
-```text
-Email / upload / seed
-  → Vera: ingest (PDF text / OCR / classify)
-  → Vera: extract (LLM → Pydantic schemas) + MRZ
-  → Code: facts → rules engine (checklist)
-  → Vera: AuditReport + draft → queue
-  → Gloria: look ✓/✕ → Approve & email | Send email
-       (confirm token + audit_log)
-```
+Vera’s agent loop is **orchestration around Llama 3.2** — not “ask the model if the visa is fine.”
 
-```mermaid
-flowchart LR
-  A[Intake] --> B[Vera ingest]
-  B --> C[Classify]
-  C --> D[Extract + MRZ]
-  D --> E[Facts]
-  E --> F[Rules]
-  F --> G[Vera draft]
-  G --> H{Gloria lock}
-  H -->|Approve| I[SMTP ready]
-  H -->|Send back| J[SMTP request]
-  H -->|Flag| K[Stay in queue]
-```
+**Orchestration graph**
 
-**Orchestration, not a free agent:** IMAP may ingest; background jobs **cannot** call lock actions. The execution graph in the desk shows Gloria (and judges) exactly what Vera ran.
+1. **Intake** — email / upload / seed lands as a pack of pages  
+2. **Triage** — route VISA mail; drop empty / unrelated noise  
+3. **Classify** — keywords first; **Llama** when the page is ambiguous (wrong name, bilingual, scan)  
+4. **Prepare pages** — text PDFs parsed; image-only / phone scans rendered + OCR’d so Llama sees usable input  
+5. **Extract (Llama 3.2, local Ollama)** — one typed call per document family: form, passport visual zone, flight, hotel, insurance, bank, employment, payslip, family register…  
+6. **MRZ tool** — machine-readable zone decoded with ICAO check digits (separate from Llama)  
+7. **Facts assembly** — validated schemas + confidence scores become the only inputs to rules  
+8. **Rules engine (code)** — checklist PASS / FAIL / NEEDS_HUMAN with evidence  
+9. **Draft (Llama-assisted text)** — ready or send-back wording → queue as DRAFT only  
+10. **Gloria lock** — look-items ✓/✕ → Approve & email or Send email (confirm token + audit log)
+
+**Why this orchestration wins**
+
+| Layer | Job | Forbidden |
+|---|---|---|
+| **Llama 3.2** | See the page. Pull fields. Flag “looks odd.” Draft language. | Decide compliance. Invent FX. Hit Send. |
+| **Code** | Apply France/TLS law-as-params. Date math. Money math. Name match. | Call cloud APIs. Guess missing docs. |
+| **Gloria** | Human intervention on every outbound action + photo / stamp judgment | Be replaced by the model |
+
+**Not a free agent:** Llama never loops itself into Approve. Background jobs **cannot** call the lock. The desk execution graph shows judges exactly which Llama steps and which checks ran — **$0** cloud bill, local Ollama only.
 
 ---
 
-## 5. Where AI is used — and where it is forbidden
+## 5. Llama 3.2 — eyes of the agent
 
-### 5.1 Vera’s AI (eyes)
+### 5.1 What we use Llama for
 
-| Step | Behavior |
+| Step | Llama’s job |
 |---|---|
-| Classification | Strong keywords first; Llama when ambiguous |
-| Extraction | Typed JSON for form, flight, hotel, insurance, bank, employment, payslip, family… |
-| LLM flags | Stamp / anomaly style flags → **NEEDS_HUMAN only**, never FAIL |
-| Email triage | Route “VISA” mail into the pipeline |
+| **Ambiguous classify** | “Is this a bank stamp page or a payslip?” when keywords disagree |
+| **Structured extract** | Typed JSON: insured name, coverage EUR, hotel checkout, closing balance, leave dates… |
+| **Soft flags** | Stamp / anomaly style signals → **NEEDS_HUMAN only**, never FAIL |
+| **Email draft** | Human-readable send-back / ready text from the audit (Gloria edits + confirms) |
 
-Every call goes through a single gateway: schema validation, retries, cost line, **sha256 cache** (offline demo via `DEMO_OFFLINE=1`).
+Every Llama call hits one gateway: schema validation, retries, cost line (still **$0** locally), and a content-hash cache so the same PDF can demo offline without re-burning GPU.
 
-### 5.2 Code (brain)
+### 5.2 What Llama is never allowed to do
 
-Stay ≤ 90 days, filing window, hotel covers stay, insurance ≥ EUR 30k + territory + cover items, bank six-month window and age, funds sufficiency, large deposit flag, employment leave covers trip, payslip recency, family register age, cross-doc name match (`rapidfuzz` `token_sort_ratio` with YAML thresholds — never `token_set_ratio`).
+- Output PASS / FAIL / “file is compliant”  
+- Override a failed MRZ checksum with “the name looks right”  
+- Invent a currency rate (especially LBP)  
+- Send mail, approve a file, or upload to TLS  
 
-### 5.3 Gloria (hands)
+**AI extracts. Code decides. Gloria locks.** That sentence is the product.
 
-Approve, send back, flag, SMTP, TLS. Manual rules (e.g. PHOTO.ISO) always wait for her eyes.
+### 5.3 Code after Llama (brain)
+
+Stay ≤ 90 days, filing window, hotel covers stay, insurance ≥ EUR 30k + territory + cover items, bank six-month window and age, funds sufficiency, large deposit flag, employment leave covers trip, payslip recency, family register age, cross-doc name match (token-sort fuzzy match with checklist thresholds — never the looser set-ratio that hides real mismatches).
+
+### 5.4 Gloria (hands)
+
+Approve, send back, flag, SMTP, TLS. Manual rules (e.g. photo quality) always wait for her eyes — Llama can only escalate those.
 
 ---
 
 ## 6. Rules & scripting (the moat)
 
-Checklist: `checklists/fr-schengen-short-stay.yaml`  
-Cited sources: France-Visas, EU Commission supporting-docs list for Lebanon, Service-Public, TLS Beirut practice.
+Checklist: France Schengen short-stay (destination YAML params only).  
+Cited sources (by name, not URLs): France-Visas, EU Commission supporting-docs list for Lebanon, Service-Public, TLS Beirut practice.
 
 | Mode | Allowed outcomes |
 |---|---|
-| `code` | PASS / FAIL / NEEDS_HUMAN |
-| `llm_flag` | PASS or NEEDS_HUMAN only |
-| `manual` | Always NEEDS_HUMAN (not counted as “escalation panic”) |
+| code | PASS / FAIL / NEEDS_HUMAN |
+| llm_flag | PASS or NEEDS_HUMAN only |
+| manual | Always NEEDS_HUMAN (not counted as “escalation panic”) |
 
-Each check is a small pure function:
+Each check is a small pure function: facts + params + submission date → result.  
+No network. No LLM. No “today’s clock” inside the rule — only the submission date on the file.  
+Missing required docs → skipped rules, not invented FAILs.  
+Evidence points at document / field / value / page so Gloria can open the right page.
 
-`def check(facts, params, ctx) -> CheckResult`
-
-No network. No LLM. No `datetime.now()` — only `ctx.submission_date`.  
-Missing required docs → `skipped_rules`, not invented FAILs.  
-Evidence objects point at doc / field / value / page so Gloria can open the right page.
-
-**Eval:** ~30 synthetic cases; unit tests on every check; `test_cases.py` runs rules on `case.yaml` facts (no LLM) against `expected.yaml` so rules bugs never hide behind extraction noise.
+**Eval:** ~30 synthetic cases; unit tests on every check; rules are scored on hand-built facts (no LLM) against expected outcomes so rules bugs never hide behind extraction noise.
 
 ---
 
-## 7. Edge cases we built on purpose
+## 7. Edge cases — this is where Vera actually wins
 
-Anyone can demo a happy path. Vera is judged on the ugly ones:
+Happy-path demos are cheap. Real desks drown in **weird, overlapping, easy-to-miss failures**. Vera is built for that mess: Llama 3.2 reads the pages, orchestration + rules decide, ~30 scored cases — and a hard rule: **if she is unsure, she escalates; she never invents a PASS**.
 
-| Case | What it proves |
-|---|---|
-| **EDGE 01 · Joe passport (MRZ)** | Tampered / unreadable MRZ → Gloria; supporting docs can stay Jeff’s |
-| **EDGE 02 · Jeff passport + Joe insurance** | Wrong insured name → identity FAIL |
-| **EDGE 03 · Jeff passport + Joe flight** | Wrong passenger → identity FAIL |
-| **Jason · passport only** | Real thin email → presence FAIL / send back |
-| **Jeff · stale dates** | Bank / payslip / family / filing window math vs submission date |
-| **Jeff · Dec live email** | Coherent pack → look-items only → Gloria Approve & email |
+Below: the **20 sharpest** problems we actually solve. Not slogans — failure modes that burn appointments.
 
-Hardening from live pain: MRZ name cleanup without destroying real surnames, list **all** mismatched docs on send-back, photo presence without trusting filenames alone, ready draft for look-only files so Approve is not deadlocked.
+### A. System intelligence (how Vera thinks under pressure)
+
+| # | Problem | What Vera does |
+|---|---|---|
+| **1** | Inbox noise (empty / unrelated mail) | Triage drops junk. No fake application from a random forward. |
+| **2** | Wrong filename, right document | Reads **content**, not the label. A passport misnamed as an invoice still routes as passport. |
+| **3** | Junk mixed into the pack | Unknown types stay unknown. A utility bill cannot poison insurance or bank facts. |
+| **4** | Phone photos & image-only scans | Render → OCR → Llama extract — same pipeline as clean text PDFs. |
+| **5** | Tampered / unreadable MRZ | ICAO check digits are law. Bad checksum → Gloria. Never “the photo looks fine.” |
+| **6** | Lebanese / Arabic name chaos | AL/EL particles, flipped given/family, accents — Llama pulls strings; **code** fuzzy-matches. |
+| **7** | LLM says “looks OK,” math says no | Passport validity, hotel/insurance/flight windows, filing window — pure date math wins. |
+| **8** | “Enough money?” vibes | Llama reads the number; engine applies balance × stay × checklist rate. |
+| **9** | Weak / blurry extraction | Low confidence → needs Gloria. A shaky read can never silently become PASS. |
+| **10** | AI that wants to send | Hard lock: only Gloria’s one-time confirm can Approve / Send back. |
+
+### B. Checklist reality (what actually kills France/TLS files)
+
+| # | Problem | What Vera does |
+|---|---|---|
+| **11** | Same person, different spellings across docs | Cross-doc identity check (passport ↔ insurance ↔ flight) → clear mismatch or officer compare. |
+| **12** | Form typo vs passport | France-Visas printout must match the passport exactly — Vera catches the one-letter trap. |
+| **13** | Itinerary dates that do not agree | Flight / hotel / insurance / form trip windows cross-checked; inconsistency → must-fix. |
+| **14** | Insurance under EUR 30,000 | Threshold fail. Replace policy or Gloria decides — no “USD is probably fine.” |
+| **15** | “France only” medical cover | Territory too narrow for a Schengen trip → fail / escalate. |
+| **16** | Cover ends one day early | Full-stay span is computed, not eyeballed. One missing day = catch. |
+| **17** | Bank statement too old or too short | Issue age + six-month window from the Lebanon EU supporting-docs practice. |
+| **18** | Suspicious large recent deposit | Flagged for Gloria context — Vera does not rubber-stamp sudden inflows. |
+| **19** | One-way ticket or filing window wrong | Missing return proof, or trip too soon / too far for filing rules → caught before TLS. |
+| **20** | Exotic / unlisted currency | No invented FX. Unknown currency → Gloria. **Never** a fake LBP rate. |
+
+**And we go further than these twenty:** expired / over-10-year passport, leave that ends mid-trip, ekhraj age / missing / translation, Arabic employment letters, payslip month windows, missing CNSS, bilingual hotels, incomplete packs (Jason: passport-only), stale vs coherent Jeff packs.
+
+**Point for judges:** Llama 3.2 eats the boring PDF grind; orchestration turns it into evidence. Long tail of visa-desk failures — Gloria acts in minutes.
+
+**Live film set:** EDGE 01–03, Jason incomplete, Jeff Dec email — same principles, real scans.
 
 ---
 
@@ -234,18 +275,31 @@ Hardening from live pain: MRZ name cleanup without destroying real surnames, lis
 
 ---
 
-## 9. Cost, privacy, business
+## 9. Cost: literally $0 for the AI
+
+This is the part that matters for a real agency.
+
+| Bill | Vera |
+|---|---|
+| OpenAI / Claude / Gemini API | **$0 — we do not use them** |
+| Per-file extract fee | **$0** |
+| GPU cloud / inference cluster | **$0** |
+| WhatsApp / Twilio / Meta | **$0 — not in the product** |
+| TLS API integration | **$0 — Gloria takes the file herself** |
+| What you need | A laptop + **free** local Ollama + Vera |
+
+**You do not have to pay for anything to run the brain.** No token meter. No subscription to a model vendor. No cloud invoice when Jeff emails another pack. Local model, local rules, local desk. Marginal cost of reading another PDF stack: **free**.
 
 | Topic | Stance |
 |---|---|
-| **Inference** | Local Ollama — no cloud LLM invoice for the core loop |
-| **Channels** | No WhatsApp / Twilio / Meta (by design) |
-| **TLS** | No auto-upload — Gloria walks the file in |
-| **Privacy** | Agency-held files; mask passport-like PII in logs; optional encryption / retention |
-| **Sell** | Vera seats + destination checklist packs (France first) |
-| **Margin** | COGS ≈ electricity + Gloria’s time on exceptions |
+| **Inference** | Ollama on-device — **$0 cloud LLM** |
+| **Channels** | No paid messaging platforms |
+| **TLS** | No paid auto-upload |
+| **Privacy** | Agency-held files; mask PII in logs |
+| **Employees** | Escape boring repetitive PDF grinding; Gloria keeps judgment |
+| **If you productize** | Optional seats / checklist packs — the *engine* still does not burn tokens |
 
-Vera multiplies Gloria’s team **without** multiplying headcount or API burn.
+Vera multiplies Gloria’s team **without** multiplying headcount **and without paying anyone for AI**.
 
 ---
 
@@ -261,15 +315,16 @@ Vera multiplies Gloria’s team **without** multiplying headcount or API burn.
 
 ## 11. Closing
 
-Visa desks do not fail because people are lazy. They fail because **the work is too detailed for tired humans and too consequential for unsupervised AI**.
+Visa desks do not fail because people are lazy. They fail because **boring repetitive PDF work** eats the day — and paying cloud AI to “guess PASS” makes it expensive *and* unsafe.
 
-**Vera** absorbs the detail.  
-**Gloria** keeps the authority.  
+**Llama 3.2** reads the stack.  
+**Orchestration** decides — code on facts, Gloria on Send.  
 **Human intervention on every outbound action.**  
-**Tens of minutes back per file — so employees do skilled work, not PDF archaeology.**
+**AI cost to run: $0.**  
+**Tens of minutes back per file — so employees do skilled work, not page-flipping.**
 
 That is the product.
 
 ---
 
-*Product name: **Vera**. Gloria is the human manager. Repo path may still say `visaref-spec` historically.*
+*Product name: **Vera**. Gloria is the human manager.*
