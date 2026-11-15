@@ -77,19 +77,20 @@ type Display = {
   current: string | null;
 };
 
-/* ---------- palette (light, VisaRef shell; calm status colours) ---------- */
-const BG = "#ffffff";
+/* ---------- palette: near-monochrome, VisaRef brand (ink #141414, gold #C4A574), muted status ---------- */
+const BG = "#fafaf9";
+const INK = "#141414";
 const RGB: Record<DisplayStatus, [number, number, number]> = {
-  completed: [46, 154, 112], // ~oklch(60% 0.12 160)
-  attention: [205, 58, 52], // oklch(58% 0.19 26)
-  awaiting: [205, 58, 52],
-  error: [196, 82, 30],
-  executing: [214, 146, 32], // amber
-  pending: [104, 124, 166], // muted slate blue
-  queued: [222, 226, 228],
-  available: [213, 218, 219], // #d5dadb
-  disabled: [170, 178, 181],
-  skipped: [150, 158, 161],
+  completed: [72, 152, 120], // muted green
+  attention: [212, 84, 74], // softer red
+  awaiting: [212, 84, 74],
+  error: [196, 96, 52],
+  executing: [184, 146, 84], // VisaRef gold, deepened for contrast on light
+  pending: [126, 138, 166], // slate
+  queued: [226, 227, 227],
+  available: [210, 212, 212],
+  disabled: [178, 181, 182],
+  skipped: [156, 160, 162],
 };
 const STATUS_LABEL: Record<DisplayStatus, string> = {
   completed: "Executed",
@@ -134,13 +135,38 @@ const edgeKey = (a: string, b: string) => `${a}→${b}`;
 function buildLayout(graph: ExecutionGraph): Layout {
   const anchors = new Map<string, { x: number; y: number }>();
   const present = CLUSTER_ORDER.filter((c) => graph.nodes.some((n) => n.cluster === c));
+  // Pipeline reads left → right; side clusters (storage, model, check functions) sit off the main path,
+  // and the human gate / delivery end the path on the right.
+  const FLOW: Record<string, { x: number; y: number }> = {
+    intake: { x: -620, y: -10 },
+    storage: { x: -520, y: 260 },
+    documents: { x: -420, y: -200 },
+    model: { x: -210, y: -330 },
+    extraction: { x: -200, y: -90 },
+    facts: { x: 20, y: -250 },
+    checks: { x: 60, y: 300 },
+    rules: { x: 150, y: 50 },
+    decision: { x: 380, y: -120 },
+    human: { x: 560, y: 0 },
+    delivery: { x: 640, y: 190 },
+  };
   present.forEach((c, i) => {
-    const a = (i / present.length) * Math.PI * 2 - Math.PI * 0.62;
-    const wobble = 0.82 + hash01(c) * 0.36;
-    anchors.set(c, { x: Math.cos(a) * 560 * wobble, y: Math.sin(a) * 235 * wobble });
+    const a = (i / present.length) * Math.PI * 2;
+    anchors.set(c, FLOW[c] ?? { x: Math.cos(a) * 520, y: Math.sin(a) * 230 });
   });
+  // Storage components sit next to the step that writes them, so their links stay short.
+  const NODE_ANCHOR: Record<string, string> = {
+    "store:files": "intake",
+    "store:llm_cache": "model",
+    "store:report": "decision",
+    "store:audit_log": "delivery",
+  };
+  const anchorOf = (n: { id: string; cluster: string }) => {
+    const a = anchors.get(NODE_ANCHOR[n.id] ?? n.cluster) ?? anchors.get(n.cluster) ?? { x: 0, y: 0 };
+    return NODE_ANCHOR[n.id] ? { x: a.x + (hash01(n.id) - 0.5) * 60, y: a.y + 70 } : a;
+  };
   const nodes: SimNode[] = graph.nodes.map((n) => {
-    const an = anchors.get(n.cluster) ?? { x: 0, y: 0 };
+    const an = anchorOf(n);
     const h = hash01(n.id);
     const h2 = hash01(n.id + "y");
     return {
@@ -165,14 +191,14 @@ function buildLayout(graph: ExecutionGraph): Layout {
           const s = l.source as SimNode;
           const t = l.target as SimNode;
           const same = s.cluster === t.cluster;
-          return (same ? 26 : 70) + s.r + t.r + (l.kind === "uses" ? 18 : 0);
+          return (same ? 26 : 90) + s.r + t.r + (l.kind === "uses" ? 18 : 0);
         })
-        .strength((l) => ((l.source as SimNode).cluster === (l.target as SimNode).cluster ? 0.55 : 0.08)),
+        .strength((l) => ((l.source as SimNode).cluster === (l.target as SimNode).cluster ? 0.55 : 0.05)),
     )
     .force("charge", forceManyBody<SimNode>().strength((d) => -26 - d.r * 7).distanceMax(420))
     .force("collide", forceCollide<SimNode>().radius((d) => d.r + 5).iterations(2))
-    .force("x", forceX<SimNode>((d) => anchors.get(d.cluster)?.x ?? 0).strength(0.06))
-    .force("y", forceY<SimNode>((d) => anchors.get(d.cluster)?.y ?? 0).strength(0.06))
+    .force("x", forceX<SimNode>((d) => anchorOf(d).x).strength((d) => (d.cluster === "human" || d.cluster === "decision" || d.cluster === "delivery" ? 0.22 : 0.08)))
+    .force("y", forceY<SimNode>((d) => anchorOf(d).y).strength((d) => (d.cluster === "human" || d.cluster === "decision" || d.cluster === "delivery" ? 0.22 : 0.08)))
     .stop();
   for (let i = 0; i < 420; i++) sim.tick();
   sim.alpha(0).alphaTarget(0);
@@ -305,7 +331,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(25_33_35/0.16)] p-3 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(20_20_20/0.18)] p-3 sm:p-5"
       role="dialog"
       aria-modal="true"
       aria-labelledby="agent-execution-graph-title"
@@ -317,7 +343,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
         initial={reduceMotion ? false : { opacity: 0, scale: 0.985 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
-        className="relative flex h-full max-h-[940px] w-full max-w-[1680px] flex-col overflow-hidden rounded-[12px] border border-[rgb(25_33_35/0.08)] bg-white text-[#192123] shadow-[0_1px_2px_rgb(25_33_35/0.04),0_24px_64px_-24px_rgb(25_33_35/0.28)]"
+        className="relative flex h-full max-h-[940px] w-full max-w-[1680px] flex-col overflow-hidden rounded-[20px] border border-[rgb(20_20_20/0.06)] bg-[#fafaf9] text-[#141414] shadow-[0_1px_2px_rgb(20_20_20/0.04),0_32px_80px_-32px_rgb(20_20_20/0.35)]"
       >
         {query.data ? (
           <GraphView
@@ -329,7 +355,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
         ) : (
           <div className="flex flex-1 flex-col">
             <TopBar title={applicantName} onClose={onClose} />
-            <div className="grid flex-1 place-items-center text-[13px] text-[#737c7f]">
+            <div className="grid flex-1 place-items-center text-[14px] text-[#8a8d8e]">
               {query.isError ? `Could not load the execution graph: ${String(query.error?.message ?? "")}` : "Loading execution graph…"}
             </div>
           </div>
@@ -337,6 +363,11 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
       </motion.section>
     </div>
   );
+}
+
+function displayName(t?: string | null) {
+  if (!t) return "Application";
+  return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase()) : t;
 }
 
 function TopBar({
@@ -349,10 +380,10 @@ function TopBar({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[rgb(25_33_35/0.08)] pr-2 pl-4">
-      <h2 id="agent-execution-graph-title" className="flex min-w-0 items-baseline gap-2 text-[14px]/[20px] font-semibold tracking-[-0.005em] text-[#192123]">
-        <span className="shrink-0">Execution graph</span>
-        <span className="truncate text-[13px] font-normal text-[#737c7f]">{title || "Application"}</span>
+    <header className="flex h-[76px] shrink-0 items-center gap-4 pr-4 pl-7">
+      <h2 id="agent-execution-graph-title" className="flex min-w-0 flex-col">
+        <span className="text-[12px]/[16px] font-medium text-[#8a8d8e]">Execution graph</span>
+        <span className="truncate text-[22px]/[28px] font-semibold tracking-[-0.02em] text-[#141414]">{displayName(title)}</span>
       </h2>
       {children}
       <button
@@ -360,7 +391,7 @@ function TopBar({
         onClick={onClose}
         aria-label="Close"
         title="Close (Esc)"
-        className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[#5c6568] transition-colors hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123] focus-visible:outline-2 focus-visible:outline-[#192123]"
+        className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-[#46494b] transition-colors hover:bg-[rgb(20_20_20/0.06)] hover:text-[#141414] focus-visible:outline-2 focus-visible:outline-[#141414]"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.8} />
       </button>
@@ -369,7 +400,9 @@ function TopBar({
 }
 
 const iconBtn =
-  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[#5c6568] transition-colors hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-[#192123] aria-pressed:bg-[rgb(25_33_35/0.08)] aria-pressed:text-[#192123]";
+  "grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-[#46494b] transition-colors hover:bg-[rgb(20_20_20/0.06)] hover:text-[#141414] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-[#141414] aria-pressed:bg-[#141414] aria-pressed:text-white aria-pressed:hover:bg-[#2a2a2a]";
+const roundBtn =
+  "grid size-9 shrink-0 cursor-pointer place-items-center rounded-full text-[#46494b] transition-colors hover:bg-[rgb(20_20_20/0.06)] hover:text-[#141414] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-[#141414]";
 
 function GraphView({
   graph,
@@ -458,8 +491,8 @@ function GraphView({
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
     const pad = 64;
-    const k = Math.max(0.3, Math.min(2.2, Math.min((w - pad * 2) / (x1 - x0 || 1), (h - pad * 2 - 56) / (y1 - y0 || 1))));
-    const v = { k, x: w / 2 - ((x0 + x1) / 2) * k, y: (h - 56) / 2 - ((y0 + y1) / 2) * k };
+    const k = Math.max(0.3, Math.min(2.2, Math.min((w - pad * 2) / (x1 - x0 || 1), (h - pad * 2 - 88) / (y1 - y0 || 1))));
+    const v = { k, x: w / 2 - ((x0 + x1) / 2) * k, y: (h - 88 + 40) / 2 - ((y0 + y1) / 2) * k };
     if (animate) targetViewRef.current = v;
     else viewRef.current = v;
   }, []);
@@ -652,7 +685,7 @@ function GraphView({
         const gs = 22;
         const ox = ((v.x % gs) + gs) % gs;
         const oy = ((v.y % gs) + gs) % gs;
-        ctx.fillStyle = "rgba(25,33,35,0.07)";
+        ctx.fillStyle = "rgba(20,20,20,0.065)";
         for (let gx = ox; gx < W; gx += gs) for (let gy = oy; gy < H; gy += gs) ctx.fillRect(gx, gy, 1, 1);
       }
 
@@ -682,6 +715,7 @@ function GraphView({
       tracked.letterSpacing = `${0.6 * px}px`;
       ctx.textAlign = "center";
       const capBoxes: { x: number; y: number; w: number }[] = [];
+      const capScreen: { x0: number; y0: number; x1: number; y1: number }[] = [];
       for (const c of layout.anchors.keys()) {
         const members = layout.nodes.filter((n) => n.cluster === c);
         if (!members.length) continue;
@@ -699,7 +733,8 @@ function GraphView({
         const cy = top - 14 * px;
         if (capBoxes.some((bx) => Math.abs(bx.x - cx) < (bx.w + cw) / 2 + 8 * px && Math.abs(bx.y - cy) < 14 * px)) continue;
         capBoxes.push({ x: cx, y: cy, w: cw });
-        ctx.fillStyle = `rgba(115,124,127,${branch ? 0.35 : 0.85})`;
+        capScreen.push({ x0: (cx - cw / 2) * v.k + v.x - 3, y0: (cy - 11 * px) * v.k + v.y, x1: (cx + cw / 2) * v.k + v.x + 3, y1: cy * v.k + v.y + 3 });
+        ctx.fillStyle = `rgba(20,20,20,${branch ? 0.2 : 0.42})`;
         ctx.fillText(cap, cx, cy);
       }
       tracked.letterSpacing = "0px";
@@ -738,7 +773,7 @@ function GraphView({
           ctx.lineWidth = (litC === "red" || gatePath ? 1.4 : l.kind === "uses" ? 0.7 : 1) * px;
           if (litC === "blue") ctx.setLineDash([3 * px, 3 * px]);
         } else {
-          ctx.strokeStyle = `rgba(25,33,35,${(near ? 0.3 : 0.09) * fade})`;
+          ctx.strokeStyle = `rgba(20,20,20,${(near ? 0.28 : 0.075) * fade})`;
           ctx.lineWidth = (near ? 1 : 0.7) * px;
         }
         ctx.stroke();
@@ -768,7 +803,7 @@ function GraphView({
 
       // nodes: soft filled circles with a thin white stroke
       const showAllLabels = v.k > 1.6;
-      const labels: { x: number; y: number; text: string; strong: boolean; pri: number; dimText: boolean }[] = [];
+      const labels: { x: number; y: number; ny: number; nr: number; text: string; strong: boolean; must: boolean; pri: number; dimText: boolean }[] = [];
       for (const n of layout.nodes) {
         const st = disp.status.get(n.id) ?? "available";
         const col = RGB[st];
@@ -864,7 +899,7 @@ function GraphView({
         if (isSel || isHov || isCur) {
           ctx.beginPath();
           ctx.arc(x, y, r + 3 * px, 0, Math.PI * 2);
-          ctx.strokeStyle = isSel ? "rgba(25,33,35,0.75)" : isCur ? rgba(col, 0.8) : "rgba(25,33,35,0.3)";
+          ctx.strokeStyle = isSel ? INK : isCur ? rgba(col, 0.9) : "rgba(20,20,20,0.28)";
           ctx.lineWidth = 1.2 * px;
           ctx.stroke();
         }
@@ -874,29 +909,56 @@ function GraphView({
         if (fade > 0.5 && (showAllLabels || important || isSel || isHov || isCur || (hl && neigh.has(n.id)))) {
           const strong = isSel || isHov || isCur || st === "awaiting" || st === "executing";
           labels.push({
-            x, y: y + r + 12 * px, text: n.node.label, strong,
+            x, y: y + r + 12 * px, ny: y, nr: r, text: n.node.label, strong,
+            must: strong || n.node.kind === "stage" || n.node.kind === "gate" || st === "attention",
             pri: (isSel || isHov ? 100 : 0) + (isCur ? 90 : 0) + (st === "awaiting" ? 80 : 0) + (st === "executing" ? 70 : 0) + n.node.size * 5,
             dimText: st === "available" || st === "disabled" || st === "queued",
           });
         }
       }
-      // labels: greedy collision avoidance in screen space, white halo for legibility
+      // labels: greedy collision avoidance in screen space (other labels + node discs), halo for legibility
       labels.sort((p1, p2) => p2.pri - p1.pri);
-      const taken: { x0: number; y0: number; x1: number; y1: number }[] = [];
+      const taken: { x0: number; y0: number; x1: number; y1: number }[] = [...capScreen];
+      const discs: { x: number; y: number; r: number }[] = [];
+      for (const n of layout.nodes) {
+        const rr = n.r * v.k;
+        if (rr >= 3.5 && dim(n.id) > 0.5) discs.push({ x: (n.x ?? 0) * v.k + v.x, y: (n.y ?? 0) * v.k + v.y, r: rr + 2 });
+      }
+      const hitsDisc = (rc: { x0: number; y0: number; x1: number; y1: number }, ownX: number, ownY: number) =>
+        discs.some((d) => {
+          if (Math.abs(d.x - ownX) < 0.5 && Math.abs(d.y - ownY) < 0.5) return false;
+          const cx = Math.max(rc.x0, Math.min(d.x, rc.x1));
+          const cy = Math.max(rc.y0, Math.min(d.y, rc.y1));
+          return (cx - d.x) ** 2 + (cy - d.y) ** 2 < d.r * d.r;
+        });
       ctx.textAlign = "center";
       ctx.lineJoin = "round";
       for (const lb of labels) {
-        ctx.font = `${lb.strong ? 500 : 400} ${11.5 * px}px ${font}`;
+        ctx.font = `${lb.strong ? 600 : 500} ${11.5 * px}px ${font}`;
         const w = ctx.measureText(lb.text).width * v.k;
-        const sx = lb.x * v.k + v.x;
-        const sy = lb.y * v.k + v.y;
-        const rect = { x0: sx - w / 2 - 4, y0: sy - 12, x1: sx + w / 2 + 4, y1: sy + 5 };
-        if (!lb.strong && taken.some((t) => rect.x0 < t.x1 && rect.x1 > t.x0 && rect.y0 < t.y1 && rect.y1 > t.y0)) continue;
-        taken.push(rect);
-        ctx.strokeStyle = "rgba(255,255,255,0.9)";
-        ctx.lineWidth = 3 * px;
+        const nodeSx = lb.x * v.k + v.x;
+        const nodeSy = lb.ny * v.k + v.y;
+        const rr = lb.nr * v.k;
+        // candidates: below, above, right, left (centre x, baseline y)
+        const cands = [
+          { cx: nodeSx, sy: nodeSy + rr + 13 },
+          { cx: nodeSx, sy: nodeSy - rr - 5 },
+          { cx: nodeSx + rr + 6 + w / 2, sy: nodeSy + 4 },
+          { cx: nodeSx - rr - 6 - w / 2, sy: nodeSy + 4 },
+        ];
+        const rectOf = (c: { cx: number; sy: number }) => ({ x0: c.cx - w / 2 - 3, y0: c.sy - 11, x1: c.cx + w / 2 + 3, y1: c.sy + 3 });
+        const hitsLabel = (rc: { x0: number; y0: number; x1: number; y1: number }) =>
+          taken.some((t) => rc.x0 < t.x1 && rc.x1 > t.x0 && rc.y0 < t.y1 && rc.y1 > t.y0);
+        let pick = cands.find((c) => !hitsLabel(rectOf(c)) && !hitsDisc(rectOf(c), nodeSx, nodeSy));
+        if (!pick && lb.must) pick = cands.find((c) => !hitsLabel(rectOf(c))) ?? cands[0];
+        if (!pick) continue;
+        taken.push(rectOf(pick));
+        lb.x = (pick.cx - v.x) / v.k;
+        lb.y = (pick.sy - v.y) / v.k;
+        ctx.strokeStyle = "rgba(250,250,249,0.92)";
+        ctx.lineWidth = 3.5 * px;
         ctx.strokeText(lb.text, lb.x, lb.y);
-        ctx.fillStyle = lb.strong ? "#192123" : lb.dimText ? "#949c9f" : "#5c6568";
+        ctx.fillStyle = lb.strong ? INK : lb.dimText ? "#9a9c9d" : "#56595b";
         ctx.fillText(lb.text, lb.x, lb.y);
       }
     };
@@ -1073,79 +1135,81 @@ function GraphView({
           >
             <HugeiconsIcon icon={Navigation03Icon} size={16} strokeWidth={1.7} />
           </button>
-          <span aria-hidden className="mx-1.5 h-4 w-px bg-[rgb(25_33_35/0.1)]" />
+          <span aria-hidden className="mx-2 h-5 w-px bg-[rgb(20_20_20/0.08)]" />
         </div>
       </TopBar>
 
       <div className="flex min-h-0 flex-1">
-        <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden bg-white">
+        <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden">
           <canvas ref={canvasRef} className="absolute inset-0 block cursor-grab touch-none" aria-label="Agent execution network" />
 
           <Legend counts={counts} />
 
-          {/* playback: one row */}
-          <div className="absolute inset-x-3 bottom-3 flex h-12 items-center gap-1 rounded-[10px] border border-[rgb(25_33_35/0.08)] bg-white/95 px-2 shadow-[0_1px_2px_rgb(25_33_35/0.04),0_4px_16px_-6px_rgb(25_33_35/0.1)] backdrop-blur">
-            <button type="button" className={iconBtn} onClick={() => step(-1)} disabled={cursor === 0 && inflight === null} aria-label="Previous step" title="Previous step (←)">
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.7} />
-            </button>
+          {/* playback: floating pill dock */}
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+            className="absolute bottom-5 left-1/2 flex h-14 w-[min(820px,calc(100%-40px))] -translate-x-1/2 items-center gap-1 rounded-full border border-[rgb(20_20_20/0.06)] bg-white/95 px-2 shadow-[0_1px_2px_rgb(20_20_20/0.04),0_12px_32px_-12px_rgb(20_20_20/0.18)] backdrop-blur"
+          >
             <button
               type="button"
               onClick={() => (playing ? pause() : play())}
-              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-[#192123] text-white transition-colors hover:bg-[#2b3437] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#192123]"
+              className="inline-flex h-10 w-[104px] shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#141414] text-[14px]/[20px] font-medium text-white transition-[background-color,scale] duration-150 hover:bg-[#2a2a2a] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141414]"
               aria-label={playing ? "Pause" : cursor >= N ? "Play" : "Resume"}
               title={playing ? "Pause (space)" : "Play (space)"}
             >
-              <HugeiconsIcon icon={playing ? PauseIcon : PlayIcon} size={14} strokeWidth={2} />
+              <HugeiconsIcon icon={playing ? PauseIcon : PlayIcon} size={14} strokeWidth={2.2} />
+              {playing ? "Pause" : cursor >= N ? "Play" : "Resume"}
             </button>
-            <button type="button" className={iconBtn} onClick={() => step(1)} disabled={cursor >= N} aria-label="Next step" title="Next step (→)">
-              <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.7} />
+            <button type="button" className={roundBtn} onClick={() => step(-1)} disabled={cursor === 0 && inflight === null} aria-label="Previous step" title="Previous step (←)">
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.8} />
             </button>
-            <button type="button" className={iconBtn} onClick={replay} aria-label="Replay" title="Replay from the first event">
-              <HugeiconsIcon icon={RepeatIcon} size={16} strokeWidth={1.7} />
+            <button type="button" className={roundBtn} onClick={() => step(1)} disabled={cursor >= N} aria-label="Next step" title="Next step (→)">
+              <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.8} />
             </button>
-            <div className="mr-1 ml-2 flex w-[200px] min-w-0 shrink-0 items-baseline gap-2 text-[12px]/[16px]">
-              <span className="min-w-0 truncate font-medium text-[#192123]">
-                {activeEvent ? nodeById.get(activeEvent.node)?.label ?? activeEvent.node : "Whole network"}
-              </span>
-              <span className="shrink-0 text-[#737c7f] tabular-nums">
-                {activeIndex !== null ? activeIndex + 1 : 0}/{N}
-              </span>
-            </div>
-            <div className="mx-2 min-w-0 flex-1">
+            <button type="button" className={roundBtn} onClick={replay} aria-label="Replay" title="Replay from the first event">
+              <HugeiconsIcon icon={RepeatIcon} size={16} strokeWidth={1.8} />
+            </button>
+            <div className="mr-1 ml-3 flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+              <div className="flex min-w-0 items-baseline justify-between gap-3 text-[12px]/[16px]">
+                <span className="min-w-0 truncate font-medium text-[#141414]">
+                  {activeEvent ? nodeById.get(activeEvent.node)?.label ?? activeEvent.node : "Whole network"}
+                  <span className="ml-2 font-normal text-[#8a8d8e] tabular-nums">
+                    {activeIndex !== null ? activeIndex + 1 : 0} of {N}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[#6b6e70] tabular-nums">
+                  {s.timing_available ? (
+                    <>
+                      {fmtMs(elapsed ?? s.total_ms)}
+                      <span className="text-[#a3a6a7]"> / {fmtMs(s.total_ms)}</span>
+                    </>
+                  ) : (
+                    "Timing not recorded"
+                  )}
+                </span>
+              </div>
               <Timeline events={events} cursor={cursor} inflight={inflight} onScrub={scrub} resolved={s.state === "approved"} />
             </div>
-            <span className="hidden shrink-0 text-right text-[12px]/[16px] text-[#5c6568] tabular-nums md:block">
-              {s.timing_available ? (
-                <>
-                  {fmtMs(elapsed ?? s.total_ms)}
-                  <span className="text-[#949c9f]"> / {fmtMs(s.total_ms)}</span>
-                </>
-              ) : (
-                "Timing not recorded"
-              )}
-            </span>
-            <label className="relative ml-2 shrink-0">
-              <span className="sr-only">Playback speed</span>
-              <select
-                aria-label="Playback speed"
-                value={speed}
-                onChange={(e) => setSpeed(Number(e.target.value))}
-                className="h-8 cursor-pointer appearance-none rounded-[7px] border border-[rgb(25_33_35/0.1)] bg-white pr-6 pl-2.5 text-[12px]/[16px] font-medium text-[#41494c] tabular-nums transition-colors hover:border-[rgb(25_33_35/0.2)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#192123]"
-              >
-                {[0.5, 1, 2, 4].map((v) => (
-                  <option key={v} value={v}>
-                    {v}×
-                  </option>
-                ))}
-              </select>
-              <svg aria-hidden viewBox="0 0 10 10" className="pointer-events-none absolute top-1/2 right-2 size-2.5 -translate-y-1/2 text-[#737c7f]">
-                <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </label>
-          </div>
+            <div className="ml-3 flex h-9 shrink-0 items-center rounded-full bg-[rgb(20_20_20/0.05)] p-1" role="group" aria-label="Playback speed">
+              {[0.5, 1, 2, 4].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={speed === v}
+                  onClick={() => setSpeed(v)}
+                  className="h-7 min-w-[38px] cursor-pointer rounded-full px-2 text-[12px]/[16px] font-medium text-[#6b6e70] tabular-nums transition-[background-color,color,box-shadow] duration-150 hover:text-[#141414] aria-pressed:bg-white aria-pressed:text-[#141414] aria-pressed:shadow-[0_1px_2px_rgb(20_20_20/0.1),0_0_0_0.5px_rgb(20_20_20/0.06)]"
+                >
+                  {v}×
+                </button>
+              ))}
+            </div>
+          </motion.div>
         </div>
 
-        <aside className="hidden w-[360px] shrink-0 flex-col border-l border-[rgb(25_33_35/0.08)] bg-white md:flex">
+        <aside className="hidden w-[392px] shrink-0 flex-col py-4 pr-4 md:flex">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-[rgb(20_20_20/0.06)] bg-white shadow-[0_1px_2px_rgb(20_20_20/0.04),0_12px_32px_-16px_rgb(20_20_20/0.14)]">
           {panelNode ? (
             <NodePanel
               key={panelNode.id}
@@ -1157,10 +1221,12 @@ function GraphView({
               focusEvent={activeEvent && activeEvent.node === panelNode.id ? activeEvent : null}
               onSelect={(id) => setSelectedId(id)}
               onClear={selectedId ? () => setSelectedId(null) : undefined}
+              animateIn={!playing && !reduceMotion}
             />
           ) : (
             <SummaryPanel graph={graph} onSelect={(id) => setSelectedId(id)} />
           )}
+          </div>
         </aside>
       </div>
     </>
@@ -1172,19 +1238,19 @@ function GraphView({
 function StatePill({ tone, label }: { tone: "green" | "red" | "amber" | "grey"; label: string }) {
   return (
     <span
-      className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[12px]/[16px] font-medium ${
+      className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px]/[16px] font-medium ${
         tone === "green"
-          ? "bg-[oklch(58%_0.12_160/0.1)] text-[oklch(42%_0.1_160)]"
+          ? "bg-[rgb(72_152_120/0.1)] text-[rgb(38_110_82)]"
           : tone === "red"
-            ? "bg-[oklch(58%_0.19_26/0.09)] text-[oklch(51%_0.18_26)]"
+            ? "bg-[rgb(212_84_74/0.09)] text-[rgb(170_52_44)]"
             : tone === "amber"
-              ? "bg-[oklch(75%_0.14_75/0.16)] text-[oklch(52%_0.11_62)]"
-              : "bg-[rgb(25_33_35/0.06)] text-[#41494c]"
+              ? "bg-[rgb(196_165_116/0.18)] text-[rgb(128_96_44)]"
+              : "bg-[rgb(20_20_20/0.05)] text-[#46494b]"
       }`}
     >
       <span
         className={`size-1.5 rounded-full ${
-          tone === "green" ? "bg-[oklch(58%_0.12_160)]" : tone === "red" ? "bg-[oklch(58%_0.19_26)]" : tone === "amber" ? "bg-[oklch(72%_0.15_70)]" : "bg-[#949c9f]"
+          tone === "green" ? "bg-[rgb(72_152_120)]" : tone === "red" ? "bg-[rgb(212_84_74)]" : tone === "amber" ? "bg-[#C4A574]" : "bg-[#a3a6a7]"
         }`}
       />
       {label}
@@ -1208,7 +1274,7 @@ function Timeline({
   const N = events.length;
   const pos = inflight !== null ? inflight + 0.5 : cursor;
   return (
-    <div className="relative h-4">
+    <div className="relative h-3">
       <div className="absolute inset-x-0 top-1/2 flex h-1 -translate-y-1/2 gap-px overflow-hidden rounded-full">
         {events.map((e, i) => (
           <span
@@ -1226,11 +1292,11 @@ function Timeline({
                         ? rgba(RGB.executing, 0.85)
                         : rgba(RGB.awaiting, 0.85)
                       : e.status === "skipped"
-                        ? "rgb(25 33 35 / 0.2)"
+                        ? "rgb(20 20 20 / 0.18)"
                         : rgba(RGB.completed, 0.85)
                   : i === inflight
                     ? rgba(RGB.executing, 1)
-                    : "rgb(25 33 35 / 0.08)",
+                    : "rgb(20 20 20 / 0.07)",
             }}
           />
         ))}
@@ -1243,7 +1309,7 @@ function Timeline({
         value={Math.round(pos)}
         onChange={(e) => onScrub(Number(e.target.value))}
         aria-label="Execution progress"
-        className="absolute inset-0 h-4 w-full cursor-pointer appearance-none bg-transparent opacity-0"
+        className="absolute inset-0 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
       />
     </div>
   );
@@ -1270,8 +1336,8 @@ function Legend({ counts }: { counts: Partial<Record<GraphNodeStatus, number>> }
     ["available", "Available"],
   ];
   return (
-    <div className="group/legend absolute top-3 left-3 z-10">
-      <div className="flex h-8 items-center gap-3 rounded-[8px] border border-[rgb(25_33_35/0.08)] bg-white/95 px-2.5 text-[12px]/[16px] text-[#5c6568] shadow-[0_1px_2px_rgb(25_33_35/0.04)]">
+    <div className="group/legend absolute top-4 left-4 z-10">
+      <div className="flex h-9 items-center gap-3.5 rounded-full border border-[rgb(20_20_20/0.06)] bg-white/95 pr-1.5 pl-4 text-[12px]/[16px] font-medium text-[#56595b] shadow-[0_1px_2px_rgb(20_20_20/0.04),0_8px_24px_-12px_rgb(20_20_20/0.14)] backdrop-blur">
         {main.map(([st, label]) => (
           <span key={st} className="inline-flex items-center gap-1.5">
             <Dot status={st} />
@@ -1280,19 +1346,19 @@ function Legend({ counts }: { counts: Partial<Record<GraphNodeStatus, number>> }
         ))}
         <button
           type="button"
-          className="-mr-1 grid h-6 cursor-default place-items-center rounded-[5px] px-1.5 text-[#737c7f] hover:bg-[rgb(25_33_35/0.05)] focus-visible:outline-2 focus-visible:outline-[#192123]"
+          className="grid h-6 cursor-default place-items-center rounded-full bg-[rgb(20_20_20/0.05)] px-2.5 text-[#56595b] transition-colors hover:bg-[rgb(20_20_20/0.09)] focus-visible:outline-2 focus-visible:outline-[#141414]"
           aria-label="All statuses"
         >
           More
         </button>
       </div>
       <div className="invisible absolute top-full left-0 z-10 pt-1.5 opacity-0 transition-opacity duration-150 group-focus-within/legend:visible group-focus-within/legend:opacity-100 group-hover/legend:visible group-hover/legend:opacity-100">
-        <div className="w-[240px] rounded-[8px] border border-[rgb(25_33_35/0.08)] bg-white p-2 text-[12px]/[16px] text-[#41494c] shadow-[0_8px_24px_-8px_rgb(25_33_35/0.18)]">
+        <div className="w-[260px] rounded-[16px] border border-[rgb(20_20_20/0.06)] bg-white p-2 text-[13px]/[18px] text-[#3a3d3f] shadow-[0_12px_32px_-12px_rgb(20_20_20/0.2)]">
           {LEGEND_ALL.map(([st, label]) => (
-            <div key={st} className="flex h-7 items-center gap-2 px-1">
+            <div key={st} className="flex h-8 items-center gap-2.5 px-2">
               <Dot status={st} />
               <span className="flex-1">{label}</span>
-              {counts[st as GraphNodeStatus] ? <span className="text-[#949c9f] tabular-nums">{counts[st as GraphNodeStatus]}</span> : null}
+              {counts[st as GraphNodeStatus] ? <span className="text-[#a3a6a7] tabular-nums">{counts[st as GraphNodeStatus]}</span> : null}
             </div>
           ))}
         </div>
@@ -1333,26 +1399,26 @@ function fmtVal(v: unknown): string {
 }
 
 const sectionBody =
-  "space-y-1.5 empty:before:block empty:before:text-[12px]/[16px] empty:before:text-[#949c9f] empty:before:content-['Nothing_recorded']";
+  "space-y-2 empty:before:block empty:before:text-[13px]/[18px] empty:before:text-[#a3a6a7] empty:before:content-['Nothing_recorded']";
 
 function Section({ title, children, open }: { title: string; children: React.ReactNode; open?: boolean }) {
   if (open) {
     return (
-      <section className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
-        <h4 className="mb-2 text-[12px]/[16px] font-medium text-[#737c7f]">{title}</h4>
+      <section className="px-6 py-4">
+        <h4 className="mb-3 text-[12px]/[16px] font-medium text-[#8a8d8e]">{title}</h4>
         <div className={sectionBody}>{children}</div>
       </section>
     );
   }
   return (
-    <details className="group/acc border-t border-[rgb(25_33_35/0.08)]">
-      <summary className="flex h-10 cursor-pointer list-none items-center justify-between px-4 text-[13px]/[18px] font-medium text-[#41494c] transition-colors select-none hover:bg-[rgb(25_33_35/0.03)] [&::-webkit-details-marker]:hidden">
+    <details className="group/acc mx-3 border-t border-[rgb(20_20_20/0.06)]">
+      <summary className="flex h-12 cursor-pointer list-none items-center justify-between rounded-[10px] px-3 text-[14px]/[20px] font-medium text-[#141414] transition-colors select-none hover:bg-[rgb(20_20_20/0.03)] [&::-webkit-details-marker]:hidden">
         {title}
-        <svg aria-hidden viewBox="0 0 10 10" className="size-2.5 text-[#949c9f] transition-transform group-open/acc:rotate-180">
+        <svg aria-hidden viewBox="0 0 10 10" className="size-2.5 text-[#a3a6a7] transition-transform duration-200 group-open/acc:rotate-180">
           <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </summary>
-      <div className={`px-4 pt-0.5 pb-3 ${sectionBody}`}>{children}</div>
+      <div className={`px-3 pt-0.5 pb-4 ${sectionBody}`}>{children}</div>
     </details>
   );
 }
@@ -1363,9 +1429,9 @@ function Row({ k, v, mono }: { k: string; v: unknown; mono?: boolean }) {
   const missing = text === U;
   if (missing && !showEmpty) return null;
   return (
-    <div className="grid grid-cols-[112px_1fr] gap-3 text-[12px]/[17px]">
-      <span className="text-[#737c7f]">{k}</span>
-      <span className={`min-w-0 break-words ${missing ? "text-[#a8afb1]" : "text-[#192123]"} ${mono && !missing ? "font-mono text-[11.5px]" : ""}`}>
+    <div className="grid grid-cols-[120px_1fr] gap-3 text-[13px]/[19px]">
+      <span className="text-[#8a8d8e]">{k}</span>
+      <span className={`min-w-0 break-words ${missing ? "text-[#b5b8b9]" : "text-[#141414]"} ${mono && !missing ? "font-mono text-[12px]" : ""}`}>
         {text}
       </span>
     </div>
@@ -1385,7 +1451,7 @@ function KVs({ obj, skip = [] }: { obj?: Record<string, unknown>; skip?: string[
 }
 
 function Chips({ ids, nodeById, onSelect }: { ids: string[]; nodeById: Map<string, ExecutionGraphNode>; onSelect: (id: string) => void }) {
-  if (!ids.length) return <span className="text-[12px] text-[#949c9f]">None</span>;
+  if (!ids.length) return <span className="text-[12px] text-[#a3a6a7]">None</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {ids.slice(0, 24).map((id) => {
@@ -1396,14 +1462,14 @@ function Chips({ ids, nodeById, onSelect }: { ids: string[]; nodeById: Map<strin
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-[5px] border border-[rgb(25_33_35/0.08)] bg-white px-1.5 text-[12px]/[16px] text-[#41494c] transition-colors hover:border-[rgb(25_33_35/0.18)] hover:text-[#192123]"
+            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full bg-[rgb(20_20_20/0.045)] px-2.5 text-[12px]/[16px] font-medium text-[#3a3d3f] transition-colors hover:bg-[rgb(20_20_20/0.08)] hover:text-[#141414]"
           >
             <Dot status={st} />
             {n?.label ?? id}
           </button>
         );
       })}
-      {ids.length > 24 ? <span className="text-[12px] text-[#949c9f]">+{ids.length - 24}</span> : null}
+      {ids.length > 24 ? <span className="text-[12px] text-[#a3a6a7]">+{ids.length - 24}</span> : null}
     </div>
   );
 }
@@ -1452,7 +1518,9 @@ function NodePanel({
   focusEvent,
   onSelect,
   onClear,
+  animateIn,
 }: {
+  animateIn: boolean;
   graph: ExecutionGraph;
   node: ExecutionGraphNode;
   status: DisplayStatus;
@@ -1496,30 +1564,29 @@ function NodePanel({
   return (
     <ShowEmpty.Provider value={showEmpty}>
       <motion.div
-        initial={{ opacity: 0, x: 6 }}
+        initial={animateIn ? { opacity: 0, x: 6 } : false}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       >
-        <div className="px-4 pt-4 pb-3">
+        <div className="px-6 pt-6 pb-2">
           <div className="flex items-center justify-between gap-2">
             <StatePill tone={tone} label={`${STATUS_LABEL[status]}${node.warning ? " · with warnings" : ""}`} />
             {onClear ? (
-              <button type="button" onClick={onClear} className="h-7 cursor-pointer rounded-[6px] px-2 text-[12px] font-medium text-[#5c6568] hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123]">
+              <button type="button" onClick={onClear} className="h-8 cursor-pointer rounded-full px-3 text-[13px] font-medium text-[#46494b] transition-colors hover:bg-[rgb(20_20_20/0.05)] hover:text-[#141414]">
                 Back to run
               </button>
             ) : null}
           </div>
-          <h3 className="mt-2.5 text-[14px]/[20px] font-semibold tracking-[-0.005em] break-words text-[#192123]">{node.label}</h3>
-          <p className="mt-0.5 text-[12px]/[17px] text-[#737c7f]">
+          <h3 className="mt-4 text-[20px]/[26px] font-semibold tracking-[-0.015em] break-words text-[#141414]">{node.label}</h3>
+          <p className="mt-1 text-[13px]/[19px] text-[#8a8d8e]">
             {node.category}
             {node.description ? ` · ${node.description}` : ""}
           </p>
         </div>
 
-        <section className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
-          <h4 className="mb-1.5 text-[12px]/[16px] font-medium text-[#737c7f]">What happened</h4>
-          <p className="text-[13px]/[19px] text-[#192123]">{story}</p>
+        <section className="px-6 pt-3 pb-2" aria-label="What happened">
+          <p className="rounded-[12px] bg-[rgb(20_20_20/0.035)] px-4 py-3 text-[14px]/[22px] text-[#2a2c2d]">{story}</p>
         </section>
 
         <Section title="General" open>
@@ -1582,19 +1649,19 @@ function NodePanel({
         </Section>
 
         <Section title="Dependencies">
-          <p className="text-[12px] text-[#737c7f]">Previous</p>
+          <p className="text-[12px] text-[#8a8d8e]">Previous</p>
           <Chips ids={[...(adjacency.inc.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
-          <p className="pt-1 text-[12px] text-[#737c7f]">Next</p>
+          <p className="pt-1 text-[12px] text-[#8a8d8e]">Next</p>
           <Chips ids={[...(adjacency.out.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
         </Section>
 
         <Section title="Evidence">
           {evidence.length ? (
             evidence.slice(0, 12).map((e, i) => (
-              <div key={i} className="rounded-[6px] bg-[rgb(25_33_35/0.04)] px-2 py-1.5 font-mono text-[11.5px]/[16px] text-[#41494c]">
+              <div key={i} className="rounded-[10px] bg-[rgb(20_20_20/0.035)] px-3 py-2 font-mono text-[12px]/[17px] text-[#3a3d3f]">
                 {String(e.doc ?? "")} · {String(e.field ?? "")}
                 {e.page ? ` · p${String(e.page)}` : ""}
-                {e.value ? <div className="break-words text-[#737c7f]">{String(e.value)}</div> : null}
+                {e.value ? <div className="break-words text-[#8a8d8e]">{String(e.value)}</div> : null}
               </div>
             ))
           ) : node.kind === "file" ? (
@@ -1605,13 +1672,13 @@ function NodePanel({
           {node.id.startsWith("lock:") || node.id === "store:audit_log" ? <Row k="Audit record" v={evs.length ? "audit_log.jsonl" : null} mono /> : null}
         </Section>
 
-        <div className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
-          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px]/[16px] text-[#5c6568] select-none">
+        <div className="mx-3 border-t border-[rgb(20_20_20/0.06)] px-3 py-4">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[13px]/[18px] text-[#56595b] select-none">
             <input
               type="checkbox"
               checked={showEmpty}
               onChange={(e) => setShowEmpty(e.target.checked)}
-              className="size-3.5 cursor-pointer accent-[#192123]"
+              className="size-3.5 cursor-pointer accent-[#141414]"
             />
             Show empty fields
           </label>
@@ -1639,25 +1706,19 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
               : "Not run";
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="px-4 pt-4 pb-3">
-        <p className="text-[12px]/[16px] font-medium text-[#737c7f]">This run</p>
-        <h3 className="mt-1 text-[14px]/[20px] font-semibold tracking-[-0.005em] text-[#192123]">{s.title}</h3>
-        <div
-          className={`mt-3 rounded-[8px] border px-3 py-2.5 text-[13px]/[19px] ${
-            red
-              ? "border-[oklch(58%_0.19_26/0.18)] bg-[oklch(58%_0.19_26/0.05)] text-[#192123]"
-              : "border-[oklch(58%_0.12_160/0.2)] bg-[oklch(58%_0.12_160/0.06)] text-[#192123]"
-          }`}
-        >
-          <span className={`font-medium ${red ? "text-[oklch(51%_0.18_26)]" : "text-[oklch(42%_0.1_160)]"}`}>{kind}. </span>
+      <div className="px-6 pt-6 pb-3">
+        <p className="text-[12px]/[16px] font-medium text-[#8a8d8e]">This run</p>
+        <h3 className="mt-1.5 text-[20px]/[26px] font-semibold tracking-[-0.015em] text-[#141414]">{s.title}</h3>
+        <div className={`mt-4 rounded-[12px] px-4 py-3 text-[14px]/[22px] text-[#2a2c2d] ${red ? "bg-[rgb(212_84_74/0.06)]" : "bg-[rgb(72_152_120/0.07)]"}`}>
+          <span className={`font-medium ${red ? "text-[rgb(170_52_44)]" : "text-[rgb(38_110_82)]"}`}>{kind}. </span>
           {s.explanation}
-          {red && s.human_action ? <div className="mt-1.5 text-[#5c6568]">{s.human_action}</div> : null}
+          {red && s.human_action ? <div className="mt-2 text-[13px]/[20px] text-[#56595b]">{s.human_action}</div> : null}
         </div>
         {red ? (
           <button
             type="button"
             onClick={() => onSelect("gate:human")}
-            className="mt-2 cursor-pointer text-[12px]/[16px] font-medium text-[oklch(51%_0.18_26)] hover:underline"
+            className="mt-4 inline-flex h-9 cursor-pointer items-center rounded-full bg-[#141414] px-4 text-[13px]/[18px] font-medium text-white transition-colors hover:bg-[#2a2a2a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141414]"
           >
             Inspect the human gate →
           </button>
@@ -1670,14 +1731,14 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
               key={a.rule_id}
               type="button"
               onClick={() => a.rule_id && onSelect(`rule:${a.rule_id}`)}
-              className="-mx-2 block w-[calc(100%+16px)] cursor-pointer rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-[rgb(25_33_35/0.04)]"
+              className="-mx-3 block w-[calc(100%+24px)] cursor-pointer rounded-[12px] px-3 py-2.5 text-left transition-colors hover:bg-[rgb(20_20_20/0.035)]"
             >
-              <span className="flex items-center gap-2 text-[13px]/[18px] font-medium text-[#192123]">
+              <span className="flex items-center gap-2 text-[14px]/[20px] font-medium text-[#141414]">
                 <Dot status={s.state === "approved" ? "completed" : "attention"} />
                 {a.rule_id}
-                <span className="text-[12px] font-normal text-[#737c7f]">{a.status}</span>
+                <span className="text-[12px] font-normal text-[#8a8d8e]">{a.status}</span>
               </span>
-              <span className="mt-0.5 block pl-4 text-[12px]/[17px] text-[#5c6568]">{a.message}</span>
+              <span className="mt-1 block pl-4 text-[13px]/[19px] text-[#56595b]">{a.message}</span>
             </button>
           ))}
         </Section>
@@ -1690,7 +1751,7 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
         <Row k="Outcome" v={s.outcome} />
         <Row k="Facts source" v={s.facts_source} />
         {!s.timing_available ? (
-          <p className="pt-1 text-[12px]/[17px] text-[#737c7f]">
+          <p className="pt-1 text-[13px]/[19px] text-[#8a8d8e]">
             This run was recorded before execution tracing existed: event order comes from the stored report, timings are unavailable.
           </p>
         ) : null}
@@ -1703,7 +1764,7 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
         <Row k="Registry" v={`${s.registry.checks} checks · ${s.registry.extractors} extractors`} />
         <Row k="Mode" v={s.demo_offline ? "Offline demo (LLM calls served from fixtures)" : "Live"} />
       </Section>
-      <p className="border-t border-[rgb(25_33_35/0.08)] px-4 pt-3 pb-5 text-[12px]/[17px] text-[#949c9f]">
+      <p className="mt-auto px-6 pt-3 pb-6 text-[12px]/[18px] text-[#a3a6a7]">
         Click a node to inspect it. Drag to pan, scroll to zoom, double-click to focus a branch. Space plays, arrows step.
       </p>
     </div>
