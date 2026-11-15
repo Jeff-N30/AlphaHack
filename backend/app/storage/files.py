@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import uuid
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
-from app.storage.db import register_application, register_document
+from app.storage.db import (
+    redact_application_sensitive_data,
+    register_application,
+    register_document,
+)
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -96,3 +101,44 @@ def store_upload(
     meta.setdefault("files", []).append({"name": dest.name, "bytes": len(data)})
     save_meta(meta, settings)
     return dest
+
+
+def redact_application(
+    application_id: str,
+    *,
+    officer: str,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Delete source documents/reports and retain only non-sensitive metadata."""
+    settings = settings or get_settings()
+    meta = load_meta(application_id, settings)
+    root = app_dir(application_id, settings)
+    raw = root / "raw"
+    deleted_files = sum(1 for path in raw.rglob("*") if path.is_file()) if raw.exists() else 0
+    if raw.exists():
+        shutil.rmtree(raw)
+    for report_name in ("email_pipeline_report.json", "ingest_report.json"):
+        report_path = root / report_name
+        if report_path.exists():
+            report_path.unlink()
+            deleted_files += 1
+
+    deleted_rows = redact_application_sensitive_data(application_id, settings)
+    for key in (
+        "applicant_email",
+        "email_sender",
+        "sender",
+        "triage_person_name",
+        "last_delivery",
+    ):
+        meta.pop(key, None)
+    meta["files"] = []
+    meta["sensitive_data_redacted"] = True
+    meta["sensitive_data_redacted_by"] = officer
+    meta["sensitive_data_redacted_at"] = datetime.now(timezone.utc).isoformat()
+    save_meta(meta, settings)
+    return {
+        "meta": meta,
+        "deleted_files": deleted_files,
+        "deleted_database_rows": deleted_rows,
+    }

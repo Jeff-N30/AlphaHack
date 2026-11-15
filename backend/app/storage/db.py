@@ -204,3 +204,50 @@ def list_documents(application_id: str, settings: Settings | None = None) -> lis
                 select(DocumentRow).where(DocumentRow.application_id == application_id)
             ).all()
         )
+
+
+def redact_application_sensitive_data(
+    application_id: str,
+    settings: Settings | None = None,
+) -> int:
+    """Remove personal/detail rows while retaining the application decision row."""
+    settings = settings or get_settings()
+    init_db(settings)
+    detail_models = (
+        DocumentRow,
+        TravelPlanRow,
+        AccommodationRow,
+        InsuranceRow,
+        FinancialRecordRow,
+        EmploymentRecordRow,
+        PayslipRow,
+        CivilStatusRow,
+    )
+    deleted = 0
+    with Session(_engine(settings)) as session:
+        application = session.get(ApplicationRow, application_id)
+        if application is None:
+            raise FileNotFoundError(application_id)
+        for model in detail_models:
+            rows = list(
+                session.exec(
+                    select(model).where(model.application_id == application_id)
+                ).all()
+            )
+            for row in rows:
+                session.delete(row)
+                deleted += 1
+        for field in (
+            "first_name",
+            "last_name",
+            "date_of_birth",
+            "place_of_birth",
+            "nationality",
+            "passport_number",
+            "passport_issue_date",
+            "passport_expiry_date",
+        ):
+            setattr(application, field, None)
+        session.add(application)
+        session.commit()
+    return deleted

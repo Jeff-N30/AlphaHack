@@ -55,6 +55,7 @@ export type ApplicationDetail = {
     created_at?: string;
     last_officer?: string;
     facts_source?: string;
+    sensitive_data_redacted?: boolean;
     applicant_email?: string | null;
     email_sender?: string | null;
     last_delivery?: DeliveryResult | null;
@@ -102,6 +103,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(text || `${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+export function redactApplication(id: string) {
+  return request<{
+    meta: ApplicationDetail["meta"];
+    deleted_files: number;
+    deleted_database_rows: number;
+  }>(`/applications/${id}/redact`, {
+    method: "POST",
+    body: JSON.stringify({ confirm: true }),
+  });
 }
 
 export function fetchApplications() {

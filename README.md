@@ -47,9 +47,13 @@ The desk has a compact MVP lock screen that checks `OFFICER_PIN` via
 `POST /auth/officer` (empty PIN in `.env` accepts any value for local demo).
 An unlocked browser session expires after four hours — this is a UI gate only;
 Approve / Send still need one-time confirm tokens. The local database remains
-regular SQLite so it can be opened in TablePlus or SQLiteStudio; use OS user
-permissions and disk encryption for machine-level protection. Do not store full
-passport numbers in SQLite without masking.
+regular SQLite.
+
+After an approved case, an officer can explicitly `POST
+/applications/{id}/redact` with `{"confirm": true}`. This removes uploaded
+documents, extraction reports, email details, and detailed database rows while
+retaining the application ID, checklist, dates, status, outcome, and audit
+record.
 
 ## Pipeline
 

@@ -1,6 +1,7 @@
 """Gloria queue list/detail + file preview helpers."""
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 
@@ -8,7 +9,13 @@ from app.api_applications import get_application_detail, list_applications, reso
 from app.config import Settings
 from app.lock.actions import approve_application
 from app.lock.tokens import clear_tokens_for_tests, issue_confirm_token
-from app.storage.files import app_dir, create_application, save_meta
+from app.storage.files import (
+    app_dir,
+    create_application,
+    redact_application,
+    save_meta,
+    store_upload,
+)
 
 
 def test_list_and_gloria_action(tmp_path: Path, monkeypatch) -> None:
@@ -74,3 +81,41 @@ def test_resolve_application_file(tmp_path: Path) -> None:
     (raw / "bank_statement.pdf").write_bytes(b"%PDF-1.4 demo")
     path = resolve_application_file(meta["id"], "bank_statement.pdf", settings=settings)
     assert path.name == "bank_statement.pdf"
+
+
+def test_redact_keeps_approved_record_and_removes_sensitive_data(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        checklist_dir=Path(__file__).resolve().parents[2] / "checklists",
+    )
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    meta.update(
+        {
+            "status": "approved_by_gloria",
+            "applicant_email": "person@example.com",
+            "triage_person_name": "Person",
+        }
+    )
+    save_meta(meta, settings)
+    store_upload(meta["id"], "passport.pdf", b"private", settings=settings)
+    (app_dir(meta["id"], settings) / "email_pipeline_report.json").write_text(
+        '{"passport":{"number":"secret"}}',
+        encoding="utf-8",
+    )
+
+    result = redact_application(meta["id"], officer="Gloria", settings=settings)
+
+    assert result["deleted_files"] == 2
+    assert not (app_dir(meta["id"], settings) / "raw").exists()
+    assert not (app_dir(meta["id"], settings) / "email_pipeline_report.json").exists()
+    redacted = json.loads(
+        (app_dir(meta["id"], settings) / "meta.json").read_text(encoding="utf-8")
+    )
+    assert redacted["id"] == meta["id"]
+    assert redacted["status"] == "approved_by_gloria"
+    assert "applicant_email" not in redacted
+    assert redacted["sensitive_data_redacted"] is True

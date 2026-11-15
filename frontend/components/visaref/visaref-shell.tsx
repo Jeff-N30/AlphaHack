@@ -32,6 +32,7 @@ import {
   postEmailInboxRead,
   postGloriaAction,
   postSeedCase,
+  redactApplication,
   uploadAndAudit,
   type ApplicationRow,
 } from "@/lib/api";
@@ -1138,6 +1139,17 @@ function ApprovalPanel({
     },
     onError: (err: Error) => toast.error(err.message),
   });
+  const redactMut = useMutation({
+    mutationFn: () => redactApplication(applicationId),
+    onSuccess: (data) => {
+      toast.success(
+        `Deleted ${data.deleted_files} sensitive file${data.deleted_files === 1 ? "" : "s"}`,
+      );
+      qc.invalidateQueries({ queryKey: ["applications"] });
+      qc.invalidateQueries({ queryKey: ["application", applicationId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   useEffect(() => {
     setConfirmedIds({});
@@ -1662,10 +1674,29 @@ function ApprovalPanel({
                   </div>
                 </div>
               ) : (
-                <div className={panelFoot}>
+                <div className={cx(panelFoot, "flex-wrap")}>
                   <p className={cx(typeBodySm, text2)}>
                     {meta?.human_action || meta?.status}
                   </p>
+                  {meta?.status === "approved_by_gloria" &&
+                  !meta?.sensitive_data_redacted ? (
+                    <button
+                      type="button"
+                      className={cx(secondaryButton, buttonSm, "text-red-700 dark:text-red-300")}
+                      disabled={redactMut.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Delete the applicant documents, reports, contact details, and extracted personal data? The approved record will remain.",
+                          )
+                        ) {
+                          redactMut.mutate();
+                        }
+                      }}
+                    >
+                      {redactMut.isPending ? "Deleting…" : "Delete sensitive data"}
+                    </button>
+                  ) : null}
                 </div>
               )}
             </section>

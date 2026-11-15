@@ -24,8 +24,9 @@ from app.ingest.email_pipeline import process_visa_inbox
 from app.ingest.email_watcher import watch_email_inbox
 from app.ingest.render import allowed_suffix
 from app.lock.actions import LockError, approve_application, mark_review, send_draft
+from app.lock.audit_log import append_audit_log
 from app.lock.tokens import issue_confirm_token
-from app.storage.files import create_application, load_meta, store_upload
+from app.storage.files import create_application, load_meta, redact_application, store_upload
 
 logger = logging.getLogger(__name__)
 _REPO = Path(__file__).resolve().parents[2]
@@ -199,7 +200,7 @@ class OfficerAuthBody(BaseModel):
 
 @app.post("/auth/officer")
 def auth_officer(body: OfficerAuthBody) -> dict:
-    """PIN gate for Gloria. Empty OFFICER_PIN in .env → demo accepts any pin."""
+    """PIN gate for Gloria. Empty OFFICER_PIN in .env accepts any pin for local demo."""
     settings = get_settings()
     expected = (settings.officer_pin or "").strip()
     if expected and body.pin.strip() != expected:
@@ -209,6 +210,47 @@ def auth_officer(body: OfficerAuthBody) -> dict:
         "officer": body.officer.strip() or settings.officer_name,
         "session": "demo" if not expected else "pin_ok",
     }
+
+
+class RedactBody(BaseModel):
+    confirm: bool = Field(..., description="Must be true to delete sensitive data")
+
+
+@app.post("/applications/{application_id}/redact")
+def redact_applicant_data(
+    application_id: str,
+    body: RedactBody,
+) -> dict:
+    """Delete personal documents/details after approval, retaining the decision record."""
+    if not body.confirm:
+        raise HTTPException(400, "confirm must be true")
+    try:
+        meta = load_meta(application_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    if meta.get("sensitive_data_redacted"):
+        return {"meta": meta, "deleted_files": 0, "deleted_database_rows": 0}
+    if meta.get("status") != "approved_by_gloria":
+        raise HTTPException(409, "sensitive data can only be redacted after approval")
+    try:
+        result = redact_application(
+            application_id,
+            officer="Gloria",
+            settings=get_settings(),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    append_audit_log(
+        officer="Gloria",
+        action="redact_sensitive_data",
+        application_id=application_id,
+        settings=get_settings(),
+        extra={
+            "deleted_files": result["deleted_files"],
+            "deleted_database_rows": result["deleted_database_rows"],
+        },
+    )
+    return result
 
 
 @app.post("/confirm-tokens")
@@ -234,7 +276,10 @@ def create_confirm_token(body: ConfirmTokenBody) -> dict:
 
 
 @app.post("/applications/{application_id}/gloria-action")
-def gloria_action(application_id: str, body: GloriaActionBody) -> dict:
+def gloria_action(
+    application_id: str,
+    body: GloriaActionBody,
+) -> dict:
     """Human-click lock: Approve / Send back / Flag — requires one-time confirm_token."""
     try:
         load_meta(application_id)

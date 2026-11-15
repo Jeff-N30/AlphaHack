@@ -20,6 +20,15 @@ class LockError(Exception):
         self.status_code = status_code
 
 
+def _delivery_audit(delivery: dict[str, Any]) -> dict[str, Any]:
+    """Keep delivery outcome without retaining recipient-identifying fields."""
+    return {
+        key: value
+        for key, value in delivery.items()
+        if key not in {"to", "intended_to", "email_error"}
+    }
+
+
 def _applicant_email(
     meta: dict[str, Any],
     settings: Settings,
@@ -126,7 +135,7 @@ def approve_application(
         action="approve",
         application_id=application_id,
         body=body,
-        extra={"delivery": delivery, "draft_id": draft.get("id")},
+        extra={"delivery": _delivery_audit(delivery), "draft_id": draft.get("id")},
         settings=settings,
     )
     return {"meta": meta, "draft": draft, "delivery": delivery}
@@ -181,7 +190,7 @@ def send_draft(
         action="send_back",
         application_id=application_id,
         body=body,
-        extra={"draft_id": draft.get("id"), "delivery": delivery},
+        extra={"draft_id": draft.get("id"), "delivery": _delivery_audit(delivery)},
         settings=settings,
     )
     return {"meta": meta, "draft": draft, "delivery": delivery}
