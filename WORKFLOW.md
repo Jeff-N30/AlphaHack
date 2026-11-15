@@ -1,7 +1,7 @@
-# VisaRef workflow (what actually runs)
+# Vera workflow (what actually runs)
 
-**Product:** Gloria desk for France Schengen short-stay pre-check.  
-**Rule:** Llama extracts fields; **Python rules** decide PASS/FAIL; Gloria confirms.
+**Product:** Vera desk (Gloria locks) for France Schengen short-stay pre-check.  
+**Rule:** Llama 3.2 extracts fields; **Python rules** decide PASS/FAIL; Gloria confirms.
 
 ```text
 Email / seed / upload
