@@ -112,6 +112,87 @@ export function fetchApplication(id: string) {
   return request<ApplicationDetail>(`/applications/${id}`);
 }
 
+export type GraphNodeStatus =
+  | "completed"
+  | "attention"
+  | "awaiting"
+  | "pending"
+  | "available"
+  | "disabled"
+  | "skipped"
+  | "error";
+
+export type ExecutionGraphNode = {
+  id: string;
+  label: string;
+  cluster: string;
+  category: string;
+  kind: string;
+  component?: string | null;
+  description?: string | null;
+  data: Record<string, unknown>;
+  configured: boolean;
+  status: GraphNodeStatus;
+  warning: boolean;
+  event_count: number;
+  total_ms: number | null;
+  degree: number;
+  size: number;
+};
+
+export type ExecutionGraphEdge = { source: string; target: string; kind: string };
+
+export type ExecutionEvent = {
+  id: string;
+  seq: number;
+  node: string;
+  label?: string | null;
+  status: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  offset_ms?: number | null;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  via?: string[];
+  from?: string | null;
+  parent?: string | null;
+  run?: string;
+  error?: string;
+  untimed?: boolean;
+};
+
+export type ExecutionGraph = {
+  application_id: string;
+  applicant_name?: string | null;
+  nodes: ExecutionGraphNode[];
+  edges: ExecutionGraphEdge[];
+  events: ExecutionEvent[];
+  clusters: Record<string, string>;
+  summary: {
+    state: "approved" | "sent_back" | "error" | "not_run" | "pending_approval" | "safe_pause";
+    title: string;
+    explanation: string;
+    outcome?: string | null;
+    status?: string;
+    human_action?: string | null;
+    attention: Array<{ rule_id?: string; status?: string; message?: string }>;
+    event_count: number;
+    timing_available: boolean;
+    pipeline_ms: number | null;
+    total_ms: number | null;
+    started_at: string | null;
+    checklist: { id: string; version: string; rules: number };
+    registry: { checks: number; extractors: number };
+    facts_source?: string | null;
+    demo_offline?: boolean;
+  };
+};
+
+export function fetchExecutionGraph(id: string) {
+  return request<ExecutionGraph>(`/applications/${encodeURIComponent(id)}/execution-graph`);
+}
+
 export function filePreviewUrl(applicationId: string, filename: string) {
   return `${API_URL}/applications/${applicationId}/files/${encodeURIComponent(filename)}`;
 }

@@ -18,6 +18,7 @@ import {
   Loading03Icon,
   Mail01Icon,
   Menu01Icon,
+  NeuralNetworkIcon,
   PassportIcon,
   RefreshIcon,
   SentIcon,
@@ -1260,10 +1261,10 @@ function ApprovalPanel({
                 secondaryButton,
                 "h-7 shrink-0 gap-1.5 rounded-[var(--rb-r-sm,6px)] px-2.5 text-[12px]/[16px] font-medium text-[#41494c]",
               )}
-              title="Open the detailed agent execution graph"
+              title="Open the agent execution graph for this file"
             >
               <span className="size-1.5 rounded-full bg-[oklch(62%_0.16_145)]" />
-              Agent graph
+              View execution graph
             </button>
           </div>
           <span
@@ -1848,12 +1849,8 @@ function ApprovalPanel({
       </div>
       {showExecutionGraph ? (
         <AgentExecutionGraph
+          applicationId={applicationId}
           applicantName={meta?.applicant_name}
-          files={files}
-          outcome={outcome}
-          resultCount={results.length}
-          escalationCount={Number(audit?.escalations ?? 0)}
-          completed={Boolean(meta?.status?.startsWith("approved"))}
           onClose={() => setShowExecutionGraph(false)}
         />
       ) : null}
@@ -1866,6 +1863,7 @@ export default function VisaRefShell() {
   const reduceMotion = useReducedMotion();
   const [areaId, setAreaId] = useState<NavView>("queue");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [graphFor, setGraphFor] = useState<{ id: string; name: string | null } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerShown, setDrawerShown] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -2352,7 +2350,7 @@ export default function VisaRefShell() {
                             {filtered.map((row) => {
                               const selected = selectedId === row.id;
                               return (
-                                <li key={row.id}>
+                                <li key={row.id} className="group/row relative">
                                   <button
                                     type="button"
                                     aria-pressed={selected}
@@ -2362,7 +2360,7 @@ export default function VisaRefShell() {
                                       pressedFill,
                                       transition,
                                       focusRingInset,
-                                      "group relative flex w-full cursor-pointer items-start gap-3 px-5 py-3.5 text-left",
+                                      "group relative flex w-full cursor-pointer items-start gap-3 py-3.5 pr-12 pl-5 text-left",
                                       selected && "bg-[#f7f8f8] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-[#192123] hover:bg-[#f3f4f4] dark:bg-neutral-100/9 dark:before:bg-neutral-100",
                                     )}
                                   >
@@ -2388,6 +2386,24 @@ export default function VisaRefShell() {
                                       </span>
                                     </span>
                                   </button>
+                                  {row.has_report && (bucket(row) === "queue" || bucket(row) === "approved") ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setGraphFor({ id: row.id, name: row.applicant_name ?? null })
+                                      }
+                                      title="View execution graph"
+                                      aria-label={`View execution graph for ${row.applicant_name || "this application"}`}
+                                      className={cx(
+                                        transition,
+                                        focusRingInset,
+                                        "absolute top-1/2 right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-[6px] text-[#9aa2a5] hover:bg-[#192123]/6 hover:text-[#192123] dark:text-neutral-500 dark:hover:bg-neutral-100/8 dark:hover:text-neutral-100",
+                                        selected && "text-[#41494c]",
+                                      )}
+                                    >
+                                      <HugeiconsIcon icon={NeuralNetworkIcon} size={16} strokeWidth={1.7} />
+                                    </button>
+                                  ) : null}
                                 </li>
                               );
                             })}
@@ -2621,6 +2637,13 @@ export default function VisaRefShell() {
           </div>
         </div>
       )}
+      {graphFor ? (
+        <AgentExecutionGraph
+          applicationId={graphFor.id}
+          applicantName={graphFor.name}
+          onClose={() => setGraphFor(null)}
+        />
+      ) : null}
     </div>
   );
 }
