@@ -35,7 +35,7 @@ import {
   RepeatIcon,
 } from "@hugeicons/core-free-icons";
 import { motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchExecutionGraph,
   type ExecutionEvent,
@@ -77,18 +77,18 @@ type Display = {
   current: string | null;
 };
 
-/* ---------- palette (dark charcoal + app green, restrained accents) ---------- */
-const BG = "#0c0f11";
+/* ---------- palette (light, VisaRef shell; calm status colours) ---------- */
+const BG = "#ffffff";
 const RGB: Record<DisplayStatus, [number, number, number]> = {
-  completed: [74, 201, 140],
-  attention: [240, 92, 92],
-  awaiting: [244, 80, 80],
-  error: [255, 120, 72],
-  executing: [245, 196, 81],
-  pending: [110, 146, 214],
-  queued: [96, 122, 168],
-  available: [120, 130, 134],
-  disabled: [90, 98, 102],
+  completed: [46, 154, 112], // ~oklch(60% 0.12 160)
+  attention: [205, 58, 52], // oklch(58% 0.19 26)
+  awaiting: [205, 58, 52],
+  error: [196, 82, 30],
+  executing: [214, 146, 32], // amber
+  pending: [104, 124, 166], // muted slate blue
+  queued: [222, 226, 228],
+  available: [213, 218, 219], // #d5dadb
+  disabled: [170, 178, 181],
   skipped: [150, 158, 161],
 };
 const STATUS_LABEL: Record<DisplayStatus, string> = {
@@ -305,7 +305,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 backdrop-blur-[2px] sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(25_33_35/0.16)] p-3 sm:p-5"
       role="dialog"
       aria-modal="true"
       aria-labelledby="agent-execution-graph-title"
@@ -317,7 +317,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
         initial={reduceMotion ? false : { opacity: 0, scale: 0.985 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
-        className="relative flex h-full max-h-[940px] w-full max-w-[1680px] flex-col overflow-hidden rounded-[12px] border border-white/[0.08] bg-[#0c0f11] text-[#e6ebec] shadow-[0_40px_120px_-40px_rgb(0_0_0/0.9)]"
+        className="relative flex h-full max-h-[940px] w-full max-w-[1680px] flex-col overflow-hidden rounded-[12px] border border-[rgb(25_33_35/0.08)] bg-white text-[#192123] shadow-[0_1px_2px_rgb(25_33_35/0.04),0_24px_64px_-24px_rgb(25_33_35/0.28)]"
       >
         {query.data ? (
           <GraphView
@@ -329,7 +329,7 @@ export default function AgentExecutionGraph({ applicationId, applicantName, onCl
         ) : (
           <div className="flex flex-1 flex-col">
             <TopBar title={applicantName} onClose={onClose} />
-            <div className="grid flex-1 place-items-center text-[13px] text-white/45">
+            <div className="grid flex-1 place-items-center text-[13px] text-[#737c7f]">
               {query.isError ? `Could not load the execution graph: ${String(query.error?.message ?? "")}` : "Loading execution graph…"}
             </div>
           </div>
@@ -349,17 +349,18 @@ function TopBar({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/[0.06] pr-2 pl-4">
-      <h2 id="agent-execution-graph-title" className="flex min-w-0 items-baseline gap-2 text-[13px]/[18px] font-medium text-white/90">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[rgb(25_33_35/0.08)] pr-2 pl-4">
+      <h2 id="agent-execution-graph-title" className="flex min-w-0 items-baseline gap-2 text-[14px]/[20px] font-semibold tracking-[-0.005em] text-[#192123]">
         <span className="shrink-0">Execution graph</span>
-        <span className="truncate font-normal text-white/45">{title || "Application"}</span>
+        <span className="truncate text-[13px] font-normal text-[#737c7f]">{title || "Application"}</span>
       </h2>
       {children}
       <button
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="ml-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-[7px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-white/60"
+        title="Close (Esc)"
+        className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[#5c6568] transition-colors hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123] focus-visible:outline-2 focus-visible:outline-[#192123]"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={1.8} />
       </button>
@@ -368,7 +369,7 @@ function TopBar({
 }
 
 const iconBtn =
-  "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-[7px] px-2 text-[12px]/[16px] font-medium text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-white/60 aria-pressed:bg-white/[0.08] aria-pressed:text-white";
+  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[#5c6568] transition-colors hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-[#192123] aria-pressed:bg-[rgb(25_33_35/0.08)] aria-pressed:text-[#192123]";
 
 function GraphView({
   graph,
@@ -646,11 +647,14 @@ function GraphView({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, W, H);
-      const vg = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
-      vg.addColorStop(0, "rgba(30,38,42,0.55)");
-      vg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = vg;
-      ctx.fillRect(0, 0, W, H);
+      // very faint dot grid, screen-space, drifts with the pan
+      {
+        const gs = 22;
+        const ox = ((v.x % gs) + gs) % gs;
+        const oy = ((v.y % gs) + gs) % gs;
+        ctx.fillStyle = "rgba(25,33,35,0.07)";
+        for (let gx = ox; gx < W; gx += gs) for (let gy = oy; gy < H; gy += gs) ctx.fillRect(gx, gy, 1, 1);
+      }
 
       ctx.setTransform(dpr * v.k, 0, 0, dpr * v.k, dpr * v.x, dpr * v.y);
       const branch = branchRef.current;
@@ -667,13 +671,15 @@ function GraphView({
           if (t === hl) neigh.add(s);
         }
       }
-      const dim = (id: string) => (branch && !branch.has(id) ? 0.12 : 1);
+      const dim = (id: string) => (branch && !branch.has(id) ? 0.15 : 1);
       const inflightEv = a ? events[a.index] : null;
       const px = 1 / v.k;
       const approvedRun = graph.summary.state === "approved" && disp.status.get("gate:human") === "completed";
+      const tracked = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
 
-      // cluster captions (very faint)
-      ctx.font = `500 ${10 * px}px ${font}`;
+      // cluster captions: 11px uppercase, grey 500, tracked
+      ctx.font = `500 ${11 * px}px ${font}`;
+      tracked.letterSpacing = `${0.6 * px}px`;
       ctx.textAlign = "center";
       const capBoxes: { x: number; y: number; w: number }[] = [];
       for (const c of layout.anchors.keys()) {
@@ -693,9 +699,23 @@ function GraphView({
         const cy = top - 14 * px;
         if (capBoxes.some((bx) => Math.abs(bx.x - cx) < (bx.w + cw) / 2 + 8 * px && Math.abs(bx.y - cy) < 14 * px)) continue;
         capBoxes.push({ x: cx, y: cy, w: cw });
-        ctx.fillStyle = `rgba(200,210,214,${0.16 * (branch ? 0.4 : 1)})`;
+        ctx.fillStyle = `rgba(115,124,127,${branch ? 0.35 : 0.85})`;
         ctx.fillText(cap, cx, cy);
       }
+      tracked.letterSpacing = "0px";
+
+      // small solid dot with a short soft trail
+      const impulse = (ax: number, ay: number, cx: number, cy: number, bx: number, by: number, t: number, col: [number, number, number], rr: number) => {
+        for (let i = 4; i >= 0; i--) {
+          const tt = t - i * 0.022;
+          if (tt < 0) continue;
+          const q = qpt(ax, ay, cx, cy, bx, by, tt);
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, rr * (1 - i * 0.14), 0, Math.PI * 2);
+          ctx.fillStyle = rgba(col, i === 0 ? 0.95 : 0.22 - i * 0.04);
+          ctx.fill();
+        }
+      };
 
       // edges
       for (const l of layout.links) {
@@ -713,13 +733,13 @@ function GraphView({
         if (litC && !isInflight) {
           const col = litC === "red" ? RGB.awaiting : litC === "blue" ? RGB.pending : RGB.completed;
           const gatePath = approvedRun && (t.node.cluster === "human" || t.node.cluster === "delivery" || s.node.cluster === "human");
-          const strong = litC === "red" || gatePath ? 0.8 : litC === "blue" ? 0.35 : l.kind === "uses" ? 0.22 : 0.42;
-          ctx.strokeStyle = rgba(col, strong * fade * (near ? 1.4 : 1));
-          ctx.lineWidth = (litC === "red" || gatePath ? 1.6 : l.kind === "uses" ? 0.7 : 1.1) * px;
-          if (litC === "blue") ctx.setLineDash([3 * px, 4 * px]);
+          const strong = litC === "red" || gatePath ? 0.7 : litC === "blue" ? 0.5 : l.kind === "uses" ? 0.18 : 0.32;
+          ctx.strokeStyle = rgba(col, Math.min(1, strong * fade * (near ? 1.6 : 1)));
+          ctx.lineWidth = (litC === "red" || gatePath ? 1.4 : l.kind === "uses" ? 0.7 : 1) * px;
+          if (litC === "blue") ctx.setLineDash([3 * px, 3 * px]);
         } else {
-          ctx.strokeStyle = `rgba(170,182,186,${(near ? 0.35 : 0.075) * fade})`;
-          ctx.lineWidth = (near ? 0.9 : 0.6) * px;
+          ctx.strokeStyle = `rgba(25,33,35,${(near ? 0.3 : 0.09) * fade})`;
+          ctx.lineWidth = (near ? 1 : 0.7) * px;
         }
         ctx.stroke();
         ctx.setLineDash([]);
@@ -733,37 +753,20 @@ function GraphView({
             if (i === 0) ctx.moveTo(q.x, q.y);
             else ctx.lineTo(q.x, q.y);
           }
-          ctx.strokeStyle = rgba(RGB.executing, 0.85);
-          ctx.lineWidth = 1.6 * px;
+          ctx.strokeStyle = rgba(RGB.executing, 0.8);
+          ctx.lineWidth = 1.4 * px;
           ctx.stroke();
-          const head = qpt(ax, ay, cx, cy, bx, by, p);
-          const g = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 9 * px);
-          g.addColorStop(0, "rgba(255,240,200,0.95)");
-          g.addColorStop(0.35, rgba(RGB.executing, 0.5));
-          g.addColorStop(1, rgba(RGB.executing, 0));
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.arc(head.x, head.y, 9 * px, 0, Math.PI * 2);
-          ctx.fill();
+          impulse(ax, ay, cx, cy, bx, by, p, RGB.executing, 2.8 * px);
         } else if (litC && !still && l.kind !== "uses" && fade > 0.5) {
           // ambient impulses along executed pathways (restrained)
-          const speedK = litC === "red" ? 0.55 : 0.22;
+          const speedK = litC === "red" ? 0.5 : 0.2;
           const ph = (time * speedK + hash01(l.key)) % 1;
-          const q = qpt(ax, ay, cx, cy, bx, by, ph);
           const col = litC === "red" ? RGB.awaiting : litC === "blue" ? RGB.pending : RGB.completed;
-          const rr = (litC === "red" ? 3.2 : 2.2) * px;
-          const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, rr * 2.4);
-          g.addColorStop(0, rgba([235, 255, 245], litC === "red" ? 0.9 : 0.55));
-          g.addColorStop(0.4, rgba(col, 0.35));
-          g.addColorStop(1, rgba(col, 0));
-          ctx.fillStyle = g;
-          ctx.beginPath();
-          ctx.arc(q.x, q.y, rr * 2.4, 0, Math.PI * 2);
-          ctx.fill();
+          impulse(ax, ay, cx, cy, bx, by, ph, col, (litC === "red" ? 2.4 : 1.8) * px);
         }
       }
 
-      // nodes
+      // nodes: soft filled circles with a thin white stroke
       const showAllLabels = v.k > 1.6;
       const labels: { x: number; y: number; text: string; strong: boolean; pri: number; dimText: boolean }[] = [];
       for (const n of layout.nodes) {
@@ -775,102 +778,99 @@ function GraphView({
         const isSel = sel === n.id;
         const isHov = hov === n.id;
         const isCur = disp.current === n.id;
-        let r = n.r;
-        let glow = 0;
+        const r = n.r;
         let alpha = 1;
+        let ring = 0; // breathing ring strength (0 = none)
+        let ringPhase = 0.5;
         switch (st) {
-          case "completed":
-            glow = n.node.kind === "gate" || n.id === disp.current ? 0.55 : 0.18;
-            break;
-          case "awaiting": {
-            const b = still ? 0.5 : 0.5 + 0.5 * Math.sin(time * 2.6);
-            glow = 0.55 + 0.45 * b;
-            r = n.r * (1 + 0.06 * b);
-            break;
-          }
-          case "attention":
-            glow = 0.28;
+          case "awaiting":
+            ring = 1;
+            ringPhase = still ? 0.4 : (time * 0.55) % 1;
             break;
           case "executing":
-            glow = 0.75 + (still ? 0 : 0.2 * Math.sin(time * 9));
-            break;
-          case "error":
-            glow = 0.6;
+            ring = 0.8;
+            ringPhase = still ? 0.4 : (time * 1.2) % 1;
             break;
           case "pending":
-            alpha = 0.6;
+            alpha = 0.85;
             break;
           case "queued":
-            alpha = 0.42;
-            break;
-          case "available":
-            alpha = 0.32;
+            alpha = 0.75;
             break;
           case "disabled":
-            alpha = 0.22;
-            break;
-          case "skipped":
-            alpha = 0.55;
+            alpha = 0.8;
             break;
         }
         if (approvedRun && st === "completed" && n.node.kind === "gate") {
-          const b = still ? 0.5 : 0.5 + 0.5 * Math.sin(time * 1.6);
-          glow = 0.85 + 0.25 * b;
-          r = n.r * 1.3;
+          ring = 0.7;
+          ringPhase = still ? 0.4 : (time * 0.35) % 1;
         }
         alpha *= fade;
-        if (glow > 0 && fade > 0.5) {
-          const gr = r * (2.4 + glow * 1.6);
-          const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, gr);
-          g.addColorStop(0, rgba(col, 0.32 * glow));
-          g.addColorStop(1, rgba(col, 0));
-          ctx.fillStyle = g;
+        if (ring > 0 && fade > 0.5) {
+          // gentle expanding ring, not a glow cloud
+          const rr = r + (3 + ringPhase * 9) * px;
           ctx.beginPath();
-          ctx.arc(x, y, gr, 0, Math.PI * 2);
+          ctx.arc(x, y, rr, 0, Math.PI * 2);
+          ctx.strokeStyle = rgba(col, 0.45 * ring * (1 - ringPhase));
+          ctx.lineWidth = 1.2 * px;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x, y, r + 2.5 * px, 0, Math.PI * 2);
+          ctx.fillStyle = rgba(col, 0.12 * ring);
           ctx.fill();
         }
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         if (st === "disabled") {
-          ctx.setLineDash([2 * px, 2.5 * px]);
-          ctx.strokeStyle = rgba(col, 0.6 * fade);
+          ctx.fillStyle = `rgba(255,255,255,${fade})`;
+          ctx.fill();
+          ctx.setLineDash([2 * px, 2 * px]);
+          ctx.strokeStyle = rgba(col, alpha);
           ctx.lineWidth = 1 * px;
           ctx.stroke();
           ctx.setLineDash([]);
         } else if (st === "skipped") {
-          ctx.fillStyle = BG;
+          ctx.fillStyle = `rgba(255,255,255,${fade})`;
           ctx.fill();
           ctx.strokeStyle = rgba(col, alpha);
-          ctx.lineWidth = 1.2 * px;
+          ctx.lineWidth = 1.1 * px;
           ctx.stroke();
           ctx.beginPath();
           ctx.moveTo(x - r * 0.55, y + r * 0.55);
           ctx.lineTo(x + r * 0.55, y - r * 0.55);
           ctx.stroke();
-        } else if (st === "pending" || st === "queued") {
-          ctx.fillStyle = rgba(col, alpha * 0.35);
+        } else if (st === "pending") {
+          ctx.fillStyle = rgba(col, 0.18 * alpha);
           ctx.fill();
           ctx.strokeStyle = rgba(col, alpha);
-          ctx.lineWidth = 1 * px;
+          ctx.lineWidth = 1.1 * px;
           ctx.stroke();
         } else {
-          ctx.fillStyle = rgba(col, alpha * (st === "available" ? 1 : 0.95));
+          ctx.fillStyle = rgba(col, alpha);
           ctx.fill();
+          ctx.strokeStyle = `rgba(255,255,255,${fade})`;
+          ctx.lineWidth = 1 * px;
+          ctx.stroke();
         }
         if (n.node.warning && st === "completed") {
           ctx.beginPath();
-          ctx.arc(x + r * 0.78, y - r * 0.78, Math.max(1.6 * px, r * 0.28), 0, Math.PI * 2);
-          ctx.fillStyle = rgba(RGB.executing, 0.9 * fade);
+          ctx.arc(x + r * 0.78, y - r * 0.78, Math.max(1.8 * px, r * 0.3), 0, Math.PI * 2);
+          ctx.fillStyle = rgba(RGB.executing, fade);
           ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 0.8 * px;
+          ctx.stroke();
         }
         if (isSel || isHov || isCur) {
           ctx.beginPath();
-          ctx.arc(x, y, r + 3.5 * px, 0, Math.PI * 2);
-          ctx.strokeStyle = isSel ? "rgba(255,255,255,0.85)" : isCur ? rgba(col, 0.75) : "rgba(255,255,255,0.4)";
+          ctx.arc(x, y, r + 3 * px, 0, Math.PI * 2);
+          ctx.strokeStyle = isSel ? "rgba(25,33,35,0.75)" : isCur ? rgba(col, 0.8) : "rgba(25,33,35,0.3)";
           ctx.lineWidth = 1.2 * px;
           ctx.stroke();
         }
-        const important = n.node.size >= 2.3 || st === "awaiting" || st === "attention" || st === "executing" || st === "error";
+        // labels: by default only stages, the gate and anything active/flagged; the rest on zoom or hover
+        const important =
+          n.node.kind === "stage" || n.node.kind === "gate" || st === "awaiting" || st === "attention" || st === "executing" || st === "error";
         if (fade > 0.5 && (showAllLabels || important || isSel || isHov || isCur || (hl && neigh.has(n.id)))) {
           const strong = isSel || isHov || isCur || st === "awaiting" || st === "executing";
           labels.push({
@@ -880,19 +880,23 @@ function GraphView({
           });
         }
       }
-      // labels: small, Obsidian-like; greedy collision avoidance in screen space
+      // labels: greedy collision avoidance in screen space, white halo for legibility
       labels.sort((p1, p2) => p2.pri - p1.pri);
       const taken: { x0: number; y0: number; x1: number; y1: number }[] = [];
       ctx.textAlign = "center";
+      ctx.lineJoin = "round";
       for (const lb of labels) {
-        ctx.font = `${lb.strong ? 500 : 400} ${11 * px}px ${font}`;
+        ctx.font = `${lb.strong ? 500 : 400} ${11.5 * px}px ${font}`;
         const w = ctx.measureText(lb.text).width * v.k;
         const sx = lb.x * v.k + v.x;
         const sy = lb.y * v.k + v.y;
-        const rect = { x0: sx - w / 2 - 3, y0: sy - 10, x1: sx + w / 2 + 3, y1: sy + 3 };
+        const rect = { x0: sx - w / 2 - 4, y0: sy - 12, x1: sx + w / 2 + 4, y1: sy + 5 };
         if (!lb.strong && taken.some((t) => rect.x0 < t.x1 && rect.x1 > t.x0 && rect.y0 < t.y1 && rect.y1 > t.y0)) continue;
         taken.push(rect);
-        ctx.fillStyle = lb.strong ? "rgba(240,244,245,0.95)" : `rgba(205,214,217,${lb.dimText ? 0.38 : 0.6})`;
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 3 * px;
+        ctx.strokeText(lb.text, lb.x, lb.y);
+        ctx.fillStyle = lb.strong ? "#192123" : lb.dimText ? "#949c9f" : "#5c6568";
         ctx.fillText(lb.text, lb.x, lb.y);
       }
     };
@@ -1034,117 +1038,114 @@ function GraphView({
   return (
     <>
       <TopBar title={applicantName} onClose={onClose}>
-        <span
-          className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 text-[12px]/[16px] font-medium ${
-            tone === "green"
-              ? "bg-[rgb(74_201_140/0.12)] text-[rgb(120_222_172)]"
-              : tone === "red"
-                ? "bg-[rgb(240_92_92/0.12)] text-[rgb(255_140_140)]"
-                : "bg-white/[0.06] text-white/60"
-          }`}
-        >
-          <span className={`size-1.5 rounded-full ${tone === "green" ? "bg-[rgb(74_201_140)]" : tone === "red" ? "bg-[rgb(244_80_80)]" : "bg-white/50"}`} />
-          {s.title}
-        </span>
-        <span className="hidden truncate text-[12px]/[16px] text-white/35 tabular-nums lg:inline">
-          {graph.nodes.length} components · {graph.edges.length} links · {N} events
-        </span>
+        <StatePill tone={tone} label={s.title} />
         <div className="ml-auto flex items-center gap-0.5">
           <button
             type="button"
             className={iconBtn}
             disabled={!selectedId && !focusId}
             aria-pressed={Boolean(focusId)}
+            aria-label={focusId ? "Clear focus" : "Focus branch"}
             onClick={() => setFocusId(focusId ? null : selectedId)}
-            title="Show only the selected node's branch (double-click a node)"
+            title={focusId ? "Clear focus" : "Focus the selected node's branch (or double-click a node)"}
           >
-            <HugeiconsIcon icon={CenterFocusIcon} size={15} strokeWidth={1.8} />
-            {focusId ? "Clear focus" : "Focus branch"}
+            <HugeiconsIcon icon={CenterFocusIcon} size={16} strokeWidth={1.7} />
           </button>
-          <button type="button" className={iconBtn} onClick={() => { setFocusId(null); fitTo(null); }} title="Reset view">
-            <HugeiconsIcon icon={FullScreenIcon} size={15} strokeWidth={1.8} />
-            Reset view
+          <button
+            type="button"
+            className={iconBtn}
+            aria-label="Reset view"
+            onClick={() => {
+              setFocusId(null);
+              fitTo(null);
+            }}
+            title="Reset view"
+          >
+            <HugeiconsIcon icon={FullScreenIcon} size={16} strokeWidth={1.7} />
           </button>
           <button
             type="button"
             className={iconBtn}
             aria-pressed={follow}
+            aria-label="Follow"
             onClick={() => setFollow((f) => !f)}
-            title="Camera follows the active node during replay"
+            title={follow ? "Camera follows the active step (on)" : "Camera follows the active step (off)"}
           >
-            <HugeiconsIcon icon={Navigation03Icon} size={15} strokeWidth={1.8} />
-            Follow
+            <HugeiconsIcon icon={Navigation03Icon} size={16} strokeWidth={1.7} />
           </button>
+          <span aria-hidden className="mx-1.5 h-4 w-px bg-[rgb(25_33_35/0.1)]" />
         </div>
       </TopBar>
 
       <div className="flex min-h-0 flex-1">
-        <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden">
+        <div ref={wrapRef} className="relative min-w-0 flex-1 overflow-hidden bg-white">
           <canvas ref={canvasRef} className="absolute inset-0 block cursor-grab touch-none" aria-label="Agent execution network" />
 
           <Legend counts={counts} />
 
-          {/* playback */}
-          <div className="absolute inset-x-3 bottom-3 flex h-11 items-center gap-1 rounded-[10px] border border-white/[0.07] bg-[#111518]/90 px-1.5 backdrop-blur-md">
+          {/* playback: one row */}
+          <div className="absolute inset-x-3 bottom-3 flex h-12 items-center gap-1 rounded-[10px] border border-[rgb(25_33_35/0.08)] bg-white/95 px-2 shadow-[0_1px_2px_rgb(25_33_35/0.04),0_4px_16px_-6px_rgb(25_33_35/0.1)] backdrop-blur">
             <button type="button" className={iconBtn} onClick={() => step(-1)} disabled={cursor === 0 && inflight === null} aria-label="Previous step" title="Previous step (←)">
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={15} strokeWidth={1.8} />
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={1.7} />
             </button>
             <button
               type="button"
               onClick={() => (playing ? pause() : play())}
-              className="inline-flex h-8 w-[84px] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-[7px] bg-white/[0.92] text-[12px]/[16px] font-medium text-[#0c0f11] transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-white/60"
-              aria-label={playing ? "Pause" : "Play"}
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full bg-[#192123] text-white transition-colors hover:bg-[#2b3437] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#192123]"
+              aria-label={playing ? "Pause" : cursor >= N ? "Play" : "Resume"}
+              title={playing ? "Pause (space)" : "Play (space)"}
             >
               <HugeiconsIcon icon={playing ? PauseIcon : PlayIcon} size={14} strokeWidth={2} />
-              {playing ? "Pause" : cursor >= N ? "Play" : "Resume"}
             </button>
             <button type="button" className={iconBtn} onClick={() => step(1)} disabled={cursor >= N} aria-label="Next step" title="Next step (→)">
-              <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={1.8} />
+              <HugeiconsIcon icon={ArrowRight01Icon} size={16} strokeWidth={1.7} />
             </button>
             <button type="button" className={iconBtn} onClick={replay} aria-label="Replay" title="Replay from the first event">
-              <HugeiconsIcon icon={RepeatIcon} size={15} strokeWidth={1.8} />
+              <HugeiconsIcon icon={RepeatIcon} size={16} strokeWidth={1.7} />
             </button>
-            <div className="mx-2 flex min-w-0 flex-1 flex-col justify-center gap-1">
-              <div className="flex min-w-0 items-baseline gap-2 text-[12px]/[14px]">
-                <span className="shrink-0 text-white/40 tabular-nums">
-                  {activeIndex !== null ? activeIndex + 1 : 0}/{N}
-                </span>
-                <span className="min-w-0 truncate font-medium text-white/85">
-                  {activeEvent ? nodeById.get(activeEvent.node)?.label ?? activeEvent.node : "Whole network"}
-                </span>
-                {activeEvent ? (
-                  <span className="shrink-0 text-white/40 tabular-nums">{fmtMs(activeEvent.duration_ms)}</span>
-                ) : null}
-              </div>
+            <div className="mr-1 ml-2 flex w-[200px] min-w-0 shrink-0 items-baseline gap-2 text-[12px]/[16px]">
+              <span className="min-w-0 truncate font-medium text-[#192123]">
+                {activeEvent ? nodeById.get(activeEvent.node)?.label ?? activeEvent.node : "Whole network"}
+              </span>
+              <span className="shrink-0 text-[#737c7f] tabular-nums">
+                {activeIndex !== null ? activeIndex + 1 : 0}/{N}
+              </span>
+            </div>
+            <div className="mx-2 min-w-0 flex-1">
               <Timeline events={events} cursor={cursor} inflight={inflight} onScrub={scrub} resolved={s.state === "approved"} />
             </div>
-            <span className="hidden shrink-0 text-right text-[12px]/[14px] text-white/45 tabular-nums md:block">
+            <span className="hidden shrink-0 text-right text-[12px]/[16px] text-[#5c6568] tabular-nums md:block">
               {s.timing_available ? (
                 <>
-                  T+{fmtMs(elapsed ?? s.total_ms)}
-                  <span className="text-white/25"> / {fmtMs(s.total_ms)}</span>
+                  {fmtMs(elapsed ?? s.total_ms)}
+                  <span className="text-[#949c9f]"> / {fmtMs(s.total_ms)}</span>
                 </>
               ) : (
                 "Timing not recorded"
               )}
             </span>
-            <div className="ml-2 flex shrink-0 items-center rounded-[7px] bg-white/[0.04] p-0.5" role="group" aria-label="Playback speed">
-              {[0.5, 1, 2, 4].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={speed === v}
-                  onClick={() => setSpeed(v)}
-                  className="h-7 min-w-[34px] cursor-pointer rounded-[5px] px-1.5 text-[12px]/[16px] text-white/45 tabular-nums transition-colors hover:text-white aria-pressed:bg-white/[0.1] aria-pressed:text-white"
-                >
-                  {v}×
-                </button>
-              ))}
-            </div>
+            <label className="relative ml-2 shrink-0">
+              <span className="sr-only">Playback speed</span>
+              <select
+                aria-label="Playback speed"
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+                className="h-8 cursor-pointer appearance-none rounded-[7px] border border-[rgb(25_33_35/0.1)] bg-white pr-6 pl-2.5 text-[12px]/[16px] font-medium text-[#41494c] tabular-nums transition-colors hover:border-[rgb(25_33_35/0.2)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#192123]"
+              >
+                {[0.5, 1, 2, 4].map((v) => (
+                  <option key={v} value={v}>
+                    {v}×
+                  </option>
+                ))}
+              </select>
+              <svg aria-hidden viewBox="0 0 10 10" className="pointer-events-none absolute top-1/2 right-2 size-2.5 -translate-y-1/2 text-[#737c7f]">
+                <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </label>
           </div>
         </div>
 
-        <aside className="hidden w-[360px] shrink-0 flex-col border-l border-white/[0.06] bg-[#0e1214] md:flex">
+        <aside className="hidden w-[360px] shrink-0 flex-col border-l border-[rgb(25_33_35/0.08)] bg-white md:flex">
           {panelNode ? (
             <NodePanel
               key={panelNode.id}
@@ -1168,6 +1169,29 @@ function GraphView({
 
 /* ---------- small pieces ---------- */
 
+function StatePill({ tone, label }: { tone: "green" | "red" | "amber" | "grey"; label: string }) {
+  return (
+    <span
+      className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] px-2 text-[12px]/[16px] font-medium ${
+        tone === "green"
+          ? "bg-[oklch(58%_0.12_160/0.1)] text-[oklch(42%_0.1_160)]"
+          : tone === "red"
+            ? "bg-[oklch(58%_0.19_26/0.09)] text-[oklch(51%_0.18_26)]"
+            : tone === "amber"
+              ? "bg-[oklch(75%_0.14_75/0.16)] text-[oklch(52%_0.11_62)]"
+              : "bg-[rgb(25_33_35/0.06)] text-[#41494c]"
+      }`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${
+          tone === "green" ? "bg-[oklch(58%_0.12_160)]" : tone === "red" ? "bg-[oklch(58%_0.19_26)]" : tone === "amber" ? "bg-[oklch(72%_0.15_70)]" : "bg-[#949c9f]"
+        }`}
+      />
+      {label}
+    </span>
+  );
+}
+
 function Timeline({
   events,
   cursor,
@@ -1184,8 +1208,8 @@ function Timeline({
   const N = events.length;
   const pos = inflight !== null ? inflight + 0.5 : cursor;
   return (
-    <div className="relative h-3">
-      <div className="absolute inset-x-0 top-1/2 flex h-[3px] -translate-y-1/2 gap-px overflow-hidden rounded-full">
+    <div className="relative h-4">
+      <div className="absolute inset-x-0 top-1/2 flex h-1 -translate-y-1/2 gap-px overflow-hidden rounded-full">
         {events.map((e, i) => (
           <span
             key={e.id}
@@ -1194,17 +1218,19 @@ function Timeline({
               background:
                 i < cursor
                   ? e.status === "awaiting"
-                    ? "rgb(244 80 80)"
+                    ? resolved
+                      ? rgba(RGB.completed, 0.85)
+                      : rgba(RGB.awaiting, 1)
                     : e.status === "failed" || e.status === "needs_human"
                       ? resolved
-                        ? "rgb(245 196 81 / 0.8)"
-                        : "rgb(240 92 92 / 0.75)"
+                        ? rgba(RGB.executing, 0.85)
+                        : rgba(RGB.awaiting, 0.85)
                       : e.status === "skipped"
-                        ? "rgb(150 158 161 / 0.6)"
-                        : "rgb(74 201 140 / 0.85)"
+                        ? "rgb(25 33 35 / 0.2)"
+                        : rgba(RGB.completed, 0.85)
                   : i === inflight
-                    ? "rgb(245 196 81)"
-                    : "rgb(255 255 255 / 0.09)",
+                    ? rgba(RGB.executing, 1)
+                    : "rgb(25 33 35 / 0.08)",
             }}
           />
         ))}
@@ -1217,34 +1243,60 @@ function Timeline({
         value={Math.round(pos)}
         onChange={(e) => onScrub(Number(e.target.value))}
         aria-label="Execution progress"
-        className="absolute inset-0 h-3 w-full cursor-pointer appearance-none bg-transparent opacity-0"
+        className="absolute inset-0 h-4 w-full cursor-pointer appearance-none bg-transparent opacity-0"
       />
     </div>
   );
 }
 
+const LEGEND_ALL: [DisplayStatus, string][] = [
+  ["completed", "Done"],
+  ["executing", "Running"],
+  ["awaiting", "Needs you (human gate)"],
+  ["attention", "Flagged check"],
+  ["error", "Error"],
+  ["pending", "Pending, after approval"],
+  ["queued", "Not reached yet (replay)"],
+  ["skipped", "Skipped (documents missing)"],
+  ["available", "Available, not used"],
+  ["disabled", "Not configured"],
+];
+
 function Legend({ counts }: { counts: Partial<Record<GraphNodeStatus, number>> }) {
-  const items: [DisplayStatus, string][] = [
-    ["completed", "Executed"],
-    ["executing", "Executing"],
-    ["awaiting", "Human intervention"],
-    ["attention", "Flagged check"],
-    ["pending", "Pending"],
-    ["skipped", "Skipped"],
+  const main: [DisplayStatus, string][] = [
+    ["completed", "Done"],
+    ["executing", "Running"],
+    ["awaiting", "Needs you"],
     ["available", "Available"],
-    ["disabled", "Not configured"],
   ];
   return (
-    <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-1 rounded-[8px] bg-[#0c0f11]/70 px-2.5 py-2 text-[11px]/[14px] text-white/50 backdrop-blur-sm">
-      {items.map(([st, label]) => (
-        <span key={st} className="inline-flex items-center gap-2">
-          <Dot status={st} />
-          <span>{label}</span>
-          {st !== "executing" && counts[st as GraphNodeStatus] ? (
-            <span className="text-white/25 tabular-nums">{counts[st as GraphNodeStatus]}</span>
-          ) : null}
-        </span>
-      ))}
+    <div className="group/legend absolute top-3 left-3 z-10">
+      <div className="flex h-8 items-center gap-3 rounded-[8px] border border-[rgb(25_33_35/0.08)] bg-white/95 px-2.5 text-[12px]/[16px] text-[#5c6568] shadow-[0_1px_2px_rgb(25_33_35/0.04)]">
+        {main.map(([st, label]) => (
+          <span key={st} className="inline-flex items-center gap-1.5">
+            <Dot status={st} />
+            {label}
+          </span>
+        ))}
+        <button
+          type="button"
+          className="-mr-1 grid h-6 cursor-default place-items-center rounded-[5px] px-1.5 text-[#737c7f] hover:bg-[rgb(25_33_35/0.05)] focus-visible:outline-2 focus-visible:outline-[#192123]"
+          aria-label="All statuses"
+        >
+          More
+        </button>
+      </div>
+      <div className="invisible absolute top-full left-0 z-10 pt-1.5 opacity-0 transition-opacity duration-150 group-focus-within/legend:visible group-focus-within/legend:opacity-100 group-hover/legend:visible group-hover/legend:opacity-100">
+        <div className="w-[240px] rounded-[8px] border border-[rgb(25_33_35/0.08)] bg-white p-2 text-[12px]/[16px] text-[#41494c] shadow-[0_8px_24px_-8px_rgb(25_33_35/0.18)]">
+          {LEGEND_ALL.map(([st, label]) => (
+            <div key={st} className="flex h-7 items-center gap-2 px-1">
+              <Dot status={st} />
+              <span className="flex-1">{label}</span>
+              {counts[st as GraphNodeStatus] ? <span className="text-[#949c9f] tabular-nums">{counts[st as GraphNodeStatus]}</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1252,22 +1304,18 @@ function Legend({ counts }: { counts: Partial<Record<GraphNodeStatus, number>> }
 function Dot({ status }: { status: DisplayStatus }) {
   const c = RGB[status];
   if (status === "disabled")
-    return <span className="size-2 rounded-full border border-dashed" style={{ borderColor: rgba(c, 0.7) }} />;
+    return <span className="size-2 shrink-0 rounded-full border border-dashed bg-white" style={{ borderColor: rgba(c, 1) }} />;
   if (status === "skipped")
-    return <span className="size-2 rounded-full border" style={{ borderColor: rgba(c, 0.8) }} />;
-  if (status === "pending" || status === "queued")
-    return <span className="size-2 rounded-full border" style={{ borderColor: rgba(c, 0.9), background: rgba(c, 0.3) }} />;
-  return (
-    <span
-      className="size-2 rounded-full"
-      style={{ background: rgba(c, status === "available" ? 0.45 : 1), boxShadow: status === "awaiting" || status === "executing" ? `0 0 6px ${rgba(c, 0.8)}` : undefined }}
-    />
-  );
+    return <span className="size-2 shrink-0 rounded-full border bg-white" style={{ borderColor: rgba(c, 1) }} />;
+  if (status === "pending")
+    return <span className="size-2 shrink-0 rounded-full border" style={{ borderColor: rgba(c, 1), background: rgba(c, 0.18) }} />;
+  return <span className="size-2 shrink-0 rounded-full" style={{ background: rgba(c, 1) }} />;
 }
 
 /* ---------- side panels ---------- */
 
 const U = "Unavailable";
+const ShowEmpty = createContext(false);
 
 function fmtVal(v: unknown): string {
   if (v === null || v === undefined || v === "") return U;
@@ -1284,22 +1332,40 @@ function fmtVal(v: unknown): string {
     .join(" · ");
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+const sectionBody =
+  "space-y-1.5 empty:before:block empty:before:text-[12px]/[16px] empty:before:text-[#949c9f] empty:before:content-['Nothing_recorded']";
+
+function Section({ title, children, open }: { title: string; children: React.ReactNode; open?: boolean }) {
+  if (open) {
+    return (
+      <section className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
+        <h4 className="mb-2 text-[12px]/[16px] font-medium text-[#737c7f]">{title}</h4>
+        <div className={sectionBody}>{children}</div>
+      </section>
+    );
+  }
   return (
-    <section className="border-t border-white/[0.06] px-4 py-3">
-      <h4 className="mb-2 text-[11px]/[14px] font-medium tracking-[0.04em] text-white/35 uppercase">{title}</h4>
-      <div className="space-y-1.5">{children}</div>
-    </section>
+    <details className="group/acc border-t border-[rgb(25_33_35/0.08)]">
+      <summary className="flex h-10 cursor-pointer list-none items-center justify-between px-4 text-[13px]/[18px] font-medium text-[#41494c] transition-colors select-none hover:bg-[rgb(25_33_35/0.03)] [&::-webkit-details-marker]:hidden">
+        {title}
+        <svg aria-hidden viewBox="0 0 10 10" className="size-2.5 text-[#949c9f] transition-transform group-open/acc:rotate-180">
+          <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </summary>
+      <div className={`px-4 pt-0.5 pb-3 ${sectionBody}`}>{children}</div>
+    </details>
   );
 }
 
 function Row({ k, v, mono }: { k: string; v: unknown; mono?: boolean }) {
+  const showEmpty = useContext(ShowEmpty);
   const text = fmtVal(v);
   const missing = text === U;
+  if (missing && !showEmpty) return null;
   return (
     <div className="grid grid-cols-[112px_1fr] gap-3 text-[12px]/[17px]">
-      <span className="text-white/40">{k}</span>
-      <span className={`min-w-0 break-words ${missing ? "text-white/25" : "text-white/80"} ${mono && !missing ? "font-mono text-[11.5px]" : ""}`}>
+      <span className="text-[#737c7f]">{k}</span>
+      <span className={`min-w-0 break-words ${missing ? "text-[#a8afb1]" : "text-[#192123]"} ${mono && !missing ? "font-mono text-[11.5px]" : ""}`}>
         {text}
       </span>
     </div>
@@ -1319,7 +1385,7 @@ function KVs({ obj, skip = [] }: { obj?: Record<string, unknown>; skip?: string[
 }
 
 function Chips({ ids, nodeById, onSelect }: { ids: string[]; nodeById: Map<string, ExecutionGraphNode>; onSelect: (id: string) => void }) {
-  if (!ids.length) return <span className="text-[12px] text-white/25">None</span>;
+  if (!ids.length) return <span className="text-[12px] text-[#949c9f]">None</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {ids.slice(0, 24).map((id) => {
@@ -1330,16 +1396,51 @@ function Chips({ ids, nodeById, onSelect }: { ids: string[]; nodeById: Map<strin
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-[6px] bg-white/[0.04] px-1.5 text-[11.5px]/[16px] text-white/70 transition-colors hover:bg-white/[0.09] hover:text-white"
+            className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-[5px] border border-[rgb(25_33_35/0.08)] bg-white px-1.5 text-[12px]/[16px] text-[#41494c] transition-colors hover:border-[rgb(25_33_35/0.18)] hover:text-[#192123]"
           >
             <Dot status={st} />
             {n?.label ?? id}
           </button>
         );
       })}
-      {ids.length > 24 ? <span className="text-[11px] text-white/30">+{ids.length - 24}</span> : null}
+      {ids.length > 24 ? <span className="text-[12px] text-[#949c9f]">+{ids.length - 24}</span> : null}
     </div>
   );
+}
+
+const VERB: Record<DisplayStatus, string> = {
+  completed: "ran and completed",
+  attention: "ran and flagged something for a human",
+  awaiting: "is waiting for a human decision",
+  error: "failed",
+  executing: "is running",
+  pending: "will run once the officer decides",
+  queued: "has not been reached yet in this replay",
+  available: "is part of the environment but was not used in this run",
+  disabled: "is not configured in this environment",
+  skipped: "was skipped because the documents it needs were missing",
+};
+
+function whatHappened(
+  node: ExecutionGraphNode,
+  status: DisplayStatus,
+  ev: ExecutionEvent | null,
+  nodeById: Map<string, ExecutionGraphNode>,
+  usedBy: number,
+  graph: ExecutionGraph,
+): string {
+  const parts: string[] = [`${node.label} ${VERB[status]}`];
+  if (ev && ev.offset_ms != null && status !== "available" && status !== "disabled" && status !== "queued")
+    parts[0] += ` at T+${fmtMs(ev.offset_ms)}${ev.duration_ms ? `, taking ${fmtMs(ev.duration_ms)}` : ""}`;
+  parts[0] += ".";
+  if (ev?.from && status !== "queued") parts.push(`It was triggered by ${nodeById.get(ev.from)?.label ?? ev.from}.`);
+  if (ev?.via?.length && status !== "queued") parts.push(`It used ${ev.via.map((v) => nodeById.get(v)?.label ?? v).join(", ")}.`);
+  if (usedBy && !ev) parts.push(`Other steps called it ${usedBy} time${usedBy === 1 ? "" : "s"}.`);
+  const result = node.data?.result as { status?: string; message?: string } | undefined;
+  if (result?.message) parts.push(`Result: ${result.message}`);
+  if (ev?.error) parts.push(`Error: ${ev.error}`);
+  if (node.id === "gate:human" && status === "awaiting" && graph.summary.human_action) parts.push(graph.summary.human_action);
+  return parts.join(" ");
 }
 
 function NodePanel({
@@ -1361,6 +1462,7 @@ function NodePanel({
   onSelect: (id: string) => void;
   onClear?: () => void;
 }) {
+  const [showEmpty, setShowEmpty] = useState(false);
   const evs = graph.events.filter((e) => e.node === node.id);
   const ev = focusEvent ?? evs[evs.length - 1] ?? null;
   const usedBy = graph.events.filter((e) => (e.via ?? []).includes(node.id));
@@ -1381,119 +1483,142 @@ function NodePanel({
   );
   const endpoint = node.component && /^(GET|POST|PUT|DELETE) /.test(node.component) ? node.component : null;
   const evidence = (result?.evidence ?? (outputs.evidence as Array<Record<string, unknown>> | undefined)) ?? [];
-  const c = RGB[status];
+  const tone =
+    status === "awaiting" || status === "attention" || status === "error"
+      ? "red"
+      : status === "completed"
+        ? "green"
+        : status === "executing"
+          ? "amber"
+          : "grey";
+  const story = whatHappened(node, status, ev, nodeById, usedBy.length, graph);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 6 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-    >
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px]/[16px] font-medium" style={{ background: rgba(c, 0.12), color: rgba(c, 1) }}>
-            <Dot status={status} />
-            {STATUS_LABEL[status]}
-            {node.warning ? " · with warnings" : ""}
-          </span>
-          {onClear ? (
-            <button type="button" onClick={onClear} className="cursor-pointer text-[12px] text-white/40 hover:text-white">
-              Back to run
-            </button>
-          ) : null}
+    <ShowEmpty.Provider value={showEmpty}>
+      <motion.div
+        initial={{ opacity: 0, x: 6 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      >
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <StatePill tone={tone} label={`${STATUS_LABEL[status]}${node.warning ? " · with warnings" : ""}`} />
+            {onClear ? (
+              <button type="button" onClick={onClear} className="h-7 cursor-pointer rounded-[6px] px-2 text-[12px] font-medium text-[#5c6568] hover:bg-[rgb(25_33_35/0.05)] hover:text-[#192123]">
+                Back to run
+              </button>
+            ) : null}
+          </div>
+          <h3 className="mt-2.5 text-[14px]/[20px] font-semibold tracking-[-0.005em] break-words text-[#192123]">{node.label}</h3>
+          <p className="mt-0.5 text-[12px]/[17px] text-[#737c7f]">
+            {node.category}
+            {node.description ? ` · ${node.description}` : ""}
+          </p>
         </div>
-        <h3 className="mt-2.5 text-[16px]/[22px] font-semibold tracking-[-0.01em] break-words text-white">{node.label}</h3>
-        <p className="mt-0.5 text-[12px]/[17px] text-white/45">
-          {node.category}
-          {node.description ? ` · ${node.description}` : ""}
-        </p>
-      </div>
 
-      <Section title="General">
-        <Row k="Component" v={node.component} mono />
-        <Row k="Category" v={node.category} />
-        <Row k="Status" v={STATUS_LABEL[status]} />
-        <Row k="Sequence" v={evs.length ? evs.map((e) => `#${e.seq}`).join(", ") : null} />
-        <Row k="Timestamp" v={ev?.started_at ? `${fmtTime(ev.started_at)} (${new Date(ev.started_at).toISOString().slice(0, 10)})` : null} />
-        <Row k="Size basis" v={`complexity · ${node.degree} links · ${node.event_count} events`} />
-      </Section>
+        <section className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
+          <h4 className="mb-1.5 text-[12px]/[16px] font-medium text-[#737c7f]">What happened</h4>
+          <p className="text-[13px]/[19px] text-[#192123]">{story}</p>
+        </section>
 
-      <Section title="Performance">
-        <Row k="Start" v={ev?.started_at ? fmtTime(ev.started_at) : null} />
-        <Row k="End" v={ev?.ended_at ? fmtTime(ev.ended_at) : null} />
-        <Row k="Duration" v={ev?.duration_ms != null ? fmtMs(ev.duration_ms) : null} />
-        <Row k="Processing" v={node.total_ms != null ? `${fmtMs(node.total_ms)} across ${node.event_count} event${node.event_count === 1 ? "" : "s"}` : null} />
-        <Row k="T+ offset" v={ev?.offset_ms != null ? fmtMs(ev.offset_ms) : null} />
-        {timings ? <KVs obj={timings} /> : null}
-        {usedBy.length ? <Row k="Called by" v={`${usedBy.length} event${usedBy.length === 1 ? "" : "s"}`} /> : null}
-      </Section>
+        <Section title="General" open>
+          <Row k="Component" v={node.component} mono />
+          <Row k="Category" v={node.category} />
+          <Row k="Status" v={STATUS_LABEL[status]} />
+          <Row k="Sequence" v={evs.length ? evs.map((e) => `#${e.seq}`).join(", ") : null} />
+          <Row k="Timestamp" v={ev?.started_at ? `${fmtTime(ev.started_at)} (${new Date(ev.started_at).toISOString().slice(0, 10)})` : null} />
+          <Row k="Size basis" v={`complexity · ${node.degree} links · ${node.event_count} events`} />
+        </Section>
 
-      <Section title="Inputs">
-        <Row k="Received from" v={ev?.from ? nodeById.get(ev.from)?.label ?? ev.from : null} />
-        <KVs obj={ev?.inputs as Record<string, unknown> | undefined} />
-      </Section>
+        <Section title="Performance">
+          <Row k="Start" v={ev?.started_at ? fmtTime(ev.started_at) : null} />
+          <Row k="End" v={ev?.ended_at ? fmtTime(ev.ended_at) : null} />
+          <Row k="Duration" v={ev?.duration_ms != null ? fmtMs(ev.duration_ms) : null} />
+          <Row k="Processing" v={node.total_ms != null ? `${fmtMs(node.total_ms)} across ${node.event_count} event${node.event_count === 1 ? "" : "s"}` : null} />
+          <Row k="T+ offset" v={ev?.offset_ms != null ? fmtMs(ev.offset_ms) : null} />
+          {timings ? <KVs obj={timings} /> : null}
+          {usedBy.length ? <Row k="Called by" v={`${usedBy.length} event${usedBy.length === 1 ? "" : "s"}`} /> : null}
+        </Section>
 
-      <Section title="Actions">
-        <Row k="Operation" v={ev?.label ?? node.description} />
-        <Row k="Tools called" v={ev?.via?.length ? ev.via.map((v) => nodeById.get(v)?.label ?? v) : null} />
-        <Row k="API endpoint" v={endpoint} mono />
-        <Row k="Model / cache" v={outputs.llm_source ? `${String(outputs.llm_source)} · ${String(outputs.model ?? "")}` : null} />
-        <Row k="External service" v={node.id === "outbound:smtp" ? data.host : node.id === "llm:ollama" ? `${String(data.provider)} ${String(data.model)}${data.demo_offline ? " (offline demo: not called)" : ""}` : null} />
-      </Section>
+        <Section title="Inputs">
+          <Row k="Received from" v={ev?.from ? nodeById.get(ev.from)?.label ?? ev.from : null} />
+          <KVs obj={ev?.inputs as Record<string, unknown> | undefined} />
+        </Section>
 
-      <Section title="Outputs">
-        {ev?.error ? <Row k="Error" v={ev.error} /> : null}
-        <KVs obj={outputs} skip={["timings_ms", "evidence", "llm_source", "model", "step"]} />
-      </Section>
+        <Section title="Actions">
+          <Row k="Operation" v={ev?.label ?? node.description} />
+          <Row k="Tools called" v={ev?.via?.length ? ev.via.map((v) => nodeById.get(v)?.label ?? v) : null} />
+          <Row k="API endpoint" v={endpoint} mono />
+          <Row k="Model / cache" v={outputs.llm_source ? `${String(outputs.llm_source)} · ${String(outputs.model ?? "")}` : null} />
+          <Row k="External service" v={node.id === "outbound:smtp" ? data.host : node.id === "llm:ollama" ? `${String(data.provider)} ${String(data.model)}${data.demo_offline ? " (offline demo: not called)" : ""}` : null} />
+        </Section>
 
-      <Section title="Validation">
-        {node.kind === "rule" ? (
-          <>
-            <Row k="Check" v={data.check} mono />
-            <Row k="Mode" v={data.mode} />
-            <Row k="On fail" v={data.on_fail} />
-            <Row k="Requires docs" v={data.docs} />
-            <Row k="Result" v={result?.status ?? (status === "skipped" ? "SKIPPED (documents missing)" : null)} />
-            <Row k="Message" v={result?.message} />
-          </>
-        ) : ruleChildren.length ? (
-          <>
-            <Row k="Rules fed" v={ruleChildren.length} />
-            <Row k="Passed" v={ruleStats.pass} />
-            <Row k="Failed" v={ruleStats.fail} />
-            <Row k="Warnings" v={ruleStats.warn} />
-          </>
-        ) : (
-          <Row k="Rules" v={null} />
-        )}
-      </Section>
+        <Section title="Outputs">
+          {ev?.error ? <Row k="Error" v={ev.error} /> : null}
+          <KVs obj={outputs} skip={["timings_ms", "evidence", "llm_source", "model", "step"]} />
+        </Section>
 
-      <Section title="Dependencies">
-        <p className="text-[11px] text-white/35">Previous</p>
-        <Chips ids={[...(adjacency.inc.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
-        <p className="pt-1 text-[11px] text-white/35">Next</p>
-        <Chips ids={[...(adjacency.out.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
-      </Section>
+        <Section title="Validation">
+          {node.kind === "rule" ? (
+            <>
+              <Row k="Check" v={data.check} mono />
+              <Row k="Mode" v={data.mode} />
+              <Row k="On fail" v={data.on_fail} />
+              <Row k="Requires docs" v={data.docs} />
+              <Row k="Result" v={result?.status ?? (status === "skipped" ? "SKIPPED (documents missing)" : null)} />
+              <Row k="Message" v={result?.message} />
+            </>
+          ) : ruleChildren.length ? (
+            <>
+              <Row k="Rules fed" v={ruleChildren.length} />
+              <Row k="Passed" v={ruleStats.pass} />
+              <Row k="Failed" v={ruleStats.fail} />
+              <Row k="Warnings" v={ruleStats.warn} />
+            </>
+          ) : (
+            <Row k="Rules" v={null} />
+          )}
+        </Section>
 
-      <Section title="Evidence">
-        {evidence.length ? (
-          evidence.slice(0, 12).map((e, i) => (
-            <div key={i} className="rounded-[6px] bg-white/[0.03] px-2 py-1.5 font-mono text-[11.5px]/[16px] text-white/70">
-              {String(e.doc ?? "")} · {String(e.field ?? "")}
-              {e.page ? ` · p${String(e.page)}` : ""}
-              {e.value ? <div className="break-words text-white/45">{String(e.value)}</div> : null}
-            </div>
-          ))
-        ) : node.kind === "file" ? (
-          <Row k="Source file" v={node.label} mono />
-        ) : (
-          <Row k="References" v={null} />
-        )}
-        {node.id.startsWith("lock:") || node.id === "store:audit_log" ? <Row k="Audit record" v={evs.length ? "audit_log.jsonl" : null} mono /> : null}
-      </Section>
-      <div className="h-4 shrink-0" />
-    </motion.div>
+        <Section title="Dependencies">
+          <p className="text-[12px] text-[#737c7f]">Previous</p>
+          <Chips ids={[...(adjacency.inc.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
+          <p className="pt-1 text-[12px] text-[#737c7f]">Next</p>
+          <Chips ids={[...(adjacency.out.get(node.id) ?? [])]} nodeById={nodeById} onSelect={onSelect} />
+        </Section>
+
+        <Section title="Evidence">
+          {evidence.length ? (
+            evidence.slice(0, 12).map((e, i) => (
+              <div key={i} className="rounded-[6px] bg-[rgb(25_33_35/0.04)] px-2 py-1.5 font-mono text-[11.5px]/[16px] text-[#41494c]">
+                {String(e.doc ?? "")} · {String(e.field ?? "")}
+                {e.page ? ` · p${String(e.page)}` : ""}
+                {e.value ? <div className="break-words text-[#737c7f]">{String(e.value)}</div> : null}
+              </div>
+            ))
+          ) : node.kind === "file" ? (
+            <Row k="Source file" v={node.label} mono />
+          ) : (
+            <Row k="References" v={null} />
+          )}
+          {node.id.startsWith("lock:") || node.id === "store:audit_log" ? <Row k="Audit record" v={evs.length ? "audit_log.jsonl" : null} mono /> : null}
+        </Section>
+
+        <div className="border-t border-[rgb(25_33_35/0.08)] px-4 py-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[12px]/[16px] text-[#5c6568] select-none">
+            <input
+              type="checkbox"
+              checked={showEmpty}
+              onChange={(e) => setShowEmpty(e.target.checked)}
+              className="size-3.5 cursor-pointer accent-[#192123]"
+            />
+            Show empty fields
+          </label>
+        </div>
+        <div className="h-4 shrink-0" />
+      </motion.div>
+    </ShowEmpty.Provider>
   );
 }
 
@@ -1515,47 +1640,49 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="px-4 pt-4 pb-3">
-        <p className="text-[11px]/[14px] font-medium tracking-[0.04em] text-white/35 uppercase">Run</p>
-        <h3 className="mt-1.5 text-[16px]/[22px] font-semibold tracking-[-0.01em] text-white">{s.title}</h3>
+        <p className="text-[12px]/[16px] font-medium text-[#737c7f]">This run</p>
+        <h3 className="mt-1 text-[14px]/[20px] font-semibold tracking-[-0.005em] text-[#192123]">{s.title}</h3>
         <div
-          className={`mt-3 rounded-[8px] border px-3 py-2.5 text-[12.5px]/[18px] ${
-            red ? "border-[rgb(244_80_80/0.25)] bg-[rgb(244_80_80/0.07)] text-[rgb(255_200_200)]" : "border-[rgb(74_201_140/0.22)] bg-[rgb(74_201_140/0.07)] text-[rgb(190_240_215)]"
+          className={`mt-3 rounded-[8px] border px-3 py-2.5 text-[13px]/[19px] ${
+            red
+              ? "border-[oklch(58%_0.19_26/0.18)] bg-[oklch(58%_0.19_26/0.05)] text-[#192123]"
+              : "border-[oklch(58%_0.12_160/0.2)] bg-[oklch(58%_0.12_160/0.06)] text-[#192123]"
           }`}
         >
-          <span className="font-medium">{kind}. </span>
+          <span className={`font-medium ${red ? "text-[oklch(51%_0.18_26)]" : "text-[oklch(42%_0.1_160)]"}`}>{kind}. </span>
           {s.explanation}
-          {red && s.human_action ? <div className="mt-1.5 text-white/50">{s.human_action}</div> : null}
+          {red && s.human_action ? <div className="mt-1.5 text-[#5c6568]">{s.human_action}</div> : null}
         </div>
         {red ? (
           <button
             type="button"
             onClick={() => onSelect("gate:human")}
-            className="mt-2 cursor-pointer text-[12px] text-[rgb(255_150_150)] hover:text-white"
+            className="mt-2 cursor-pointer text-[12px]/[16px] font-medium text-[oklch(51%_0.18_26)] hover:underline"
           >
             Inspect the human gate →
           </button>
         ) : null}
       </div>
       {s.attention.length ? (
-        <Section title={s.state === "approved" ? "Flags resolved by the officer" : "Needs human attention"}>
+        <Section title={s.state === "approved" ? "Flags resolved by the officer" : "Needs your attention"} open>
           {s.attention.map((a) => (
             <button
               key={a.rule_id}
               type="button"
               onClick={() => a.rule_id && onSelect(`rule:${a.rule_id}`)}
-              className="block w-full cursor-pointer rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-white/[0.04]"
+              className="-mx-2 block w-[calc(100%+16px)] cursor-pointer rounded-[6px] px-2 py-1.5 text-left transition-colors hover:bg-[rgb(25_33_35/0.04)]"
             >
-              <span className="flex items-center gap-2 text-[12px]/[16px] font-medium text-white/85">
+              <span className="flex items-center gap-2 text-[13px]/[18px] font-medium text-[#192123]">
                 <Dot status={s.state === "approved" ? "completed" : "attention"} />
                 {a.rule_id}
-                <span className="font-normal text-white/35">{a.status}</span>
+                <span className="text-[12px] font-normal text-[#737c7f]">{a.status}</span>
               </span>
-              <span className="mt-0.5 block pl-4 text-[12px]/[16px] text-white/50">{a.message}</span>
+              <span className="mt-0.5 block pl-4 text-[12px]/[17px] text-[#5c6568]">{a.message}</span>
             </button>
           ))}
         </Section>
       ) : null}
-      <Section title="Execution">
+      <Section title="Execution" open>
         <Row k="Events" v={s.event_count} />
         <Row k="Agent time" v={s.timing_available ? fmtMs(s.pipeline_ms) : null} />
         <Row k="Total elapsed" v={s.timing_available ? fmtMs(s.total_ms) : null} />
@@ -1563,7 +1690,7 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
         <Row k="Outcome" v={s.outcome} />
         <Row k="Facts source" v={s.facts_source} />
         {!s.timing_available ? (
-          <p className="pt-1 text-[11.5px]/[16px] text-white/40">
+          <p className="pt-1 text-[12px]/[17px] text-[#737c7f]">
             This run was recorded before execution tracing existed: event order comes from the stored report, timings are unavailable.
           </p>
         ) : null}
@@ -1571,12 +1698,13 @@ function SummaryPanel({ graph, onSelect }: { graph: ExecutionGraph; onSelect: (i
       <Section title="Environment">
         <Row k="Components" v={graph.nodes.length} />
         <Row k="Links" v={graph.edges.length} />
+        <Row k="Events" v={graph.events.length} />
         <Row k="Checklist" v={`${s.checklist.id} v${s.checklist.version} · ${s.checklist.rules} rules`} />
         <Row k="Registry" v={`${s.registry.checks} checks · ${s.registry.extractors} extractors`} />
         <Row k="Mode" v={s.demo_offline ? "Offline demo (LLM calls served from fixtures)" : "Live"} />
       </Section>
-      <p className="px-4 pt-2 pb-5 text-[11.5px]/[16px] text-white/30">
-        Click a node to inspect it. Drag to pan, scroll to zoom, drag a node to move it, double-click to focus its branch. Space plays, arrows step.
+      <p className="border-t border-[rgb(25_33_35/0.08)] px-4 pt-3 pb-5 text-[12px]/[17px] text-[#949c9f]">
+        Click a node to inspect it. Drag to pan, scroll to zoom, double-click to focus a branch. Space plays, arrows step.
       </p>
     </div>
   );
