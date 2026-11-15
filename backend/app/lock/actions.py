@@ -306,12 +306,21 @@ def approve_application(
     officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
+    body_override: str | None = None,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Traced human-lock action (events appended to execution_trace.json)."""
     with start_run(application_id, kind="lock", settings=settings):
         with trace_span("lock:approve", source="gate:human", label="Approve", inputs={"officer": officer}) as out:
-            result = _approve_application(application_id, confirm_token=confirm_token, officer=officer, draft_id=draft_id, to_email=to_email, settings=settings)
+            result = _approve_application(
+                application_id,
+                confirm_token=confirm_token,
+                officer=officer,
+                draft_id=draft_id,
+                to_email=to_email,
+                body_override=body_override,
+                settings=settings,
+            )
             out["officer"] = officer
         trace_record(
             "gate:human",
@@ -330,12 +339,21 @@ def send_draft(
     officer: str = "Vera",
     draft_id: str | None = None,
     to_email: str | None = None,
+    body_override: str | None = None,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Traced human-lock action (events appended to execution_trace.json)."""
     with start_run(application_id, kind="lock", settings=settings):
         with trace_span("lock:send_back", source="gate:human", label="Send back", inputs={"officer": officer}) as out:
-            result = _send_draft(application_id, confirm_token=confirm_token, officer=officer, draft_id=draft_id, to_email=to_email, settings=settings)
+            result = _send_draft(
+                application_id,
+                confirm_token=confirm_token,
+                officer=officer,
+                draft_id=draft_id,
+                to_email=to_email,
+                body_override=body_override,
+                settings=settings,
+            )
             out["officer"] = officer
         trace_record(
             "gate:human",

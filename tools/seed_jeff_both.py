@@ -28,8 +28,6 @@ from app.storage.files import (  # noqa: E402
 )
 
 ORIG_APP = "eb09659c3feb"
-# Edge-01 copy still holds the pre-overwrite Jeff supporting docs (Joe passport only).
-EDGE01_RAW = ROOT / "data" / "applications" / "f3fee39a08ad" / "raw"
 PACK = ROOT / "data" / "jeff_demo_pack"
 PACK_DEC = ROOT / "data" / "jeff_demo_pack_dec"
 CASE_DEC = ROOT / "data" / "jeff_demo_case" / "case.yaml"
@@ -57,22 +55,23 @@ def _sync_meta_files(aid: str, settings) -> None:
 
 
 def restore_original_jeff(settings) -> None:
-    """Put Feb-2026 / real-scan pack back on eb09659c3feb; keep Jeff passport."""
+    """Seed/refresh Jeff original from data/jeff_demo_pack (stable on disk)."""
+    if not PACK.exists() or not any(PACK.iterdir()):
+        raise SystemExit(f"missing pack {PACK}")
     raw = settings.data_dir / "applications" / ORIG_APP / "raw"
+    if not (settings.data_dir / "applications" / ORIG_APP / "meta.json").exists():
+        create_application(
+            checklist_id="fr-schengen-short-stay",
+            submission_date=date(2026, 11, 15),
+            settings=settings,
+            application_id=ORIG_APP,
+        )
     raw.mkdir(parents=True, exist_ok=True)
-    passport = raw / "passport.jpeg"
-    if not passport.exists():
-        raise SystemExit(f"missing Jeff passport on {ORIG_APP}")
-    keep = {"passport.jpeg"}
-    _wipe_raw(raw, keep=keep)
-
-    for src in sorted(EDGE01_RAW.iterdir()):
-        if not src.is_file() or src.suffix.lower() not in DOC_EXTS:
-            continue
-        if src.name == "passport.jpeg":
-            continue  # Joe edge passport — do not overwrite Jeff
-        shutil.copy2(src, raw / src.name)
-        print("restore", src.name)
+    _wipe_raw(raw, keep=set())
+    for src in sorted(PACK.iterdir()):
+        if src.is_file() and src.suffix.lower() in DOC_EXTS:
+            shutil.copy2(src, raw / src.name)
+            print("restore", src.name)
 
     meta = load_meta(ORIG_APP, settings)
     meta["demo_label"] = "Jeff Nader"
@@ -82,20 +81,6 @@ def restore_original_jeff(settings) -> None:
     meta.pop("human_action", None)
     save_meta(meta, settings)
     _sync_meta_files(ORIG_APP, settings)
-
-    # Restore jeff_demo_pack to match original (edge base) — Jeff passport + old docs
-    PACK.mkdir(parents=True, exist_ok=True)
-    for p in list(PACK.iterdir()):
-        if p.is_file() and p.name not in {"passport.jpeg"}:
-            # keep passport if already Jeff; refresh from app if missing
-            if p.suffix.lower() in DOC_EXTS:
-                p.unlink()
-    if not (PACK / "passport.jpeg").exists():
-        shutil.copy2(passport, PACK / "passport.jpeg")
-    for src in sorted(raw.iterdir()):
-        if src.is_file() and src.suffix.lower() in DOC_EXTS:
-            shutil.copy2(src, PACK / src.name)
-    print("jeff_demo_pack restored from original Jeff raw")
 
     print(f"auditing original {ORIG_APP} …")
     report = audit_application(ORIG_APP, settings=settings, case_id="jeff_original")
@@ -115,17 +100,23 @@ def build_dec_pack() -> Path:
     for p in list(PACK_DEC.iterdir()):
         if p.is_file():
             p.unlink()
-    # Jeff passport + national id from original app / pack
-    for name in ("passport.jpeg", "national_id.jpeg"):
+    # Passport scan from Jeff pack
+    # Passport only from scans — national ID is not on the FR checklist.
+    for name in ("passport.jpeg",):
         src = PACK / name
         if not src.exists():
             src = ROOT / "data" / "applications" / ORIG_APP / "raw" / name
         if src.exists():
             shutil.copy2(src, PACK_DEC / name)
             print("dec keep", name)
-    for photo_name in ("photo.png", "photo_2.png"):
-        render_photo(PACK_DEC / photo_name)
-        print("dec wrote", photo_name)
+    # One real Jeff ID photo, duplicated as photo_2 (checklist wants 2).
+    src_photo = PACK / "photo.png"
+    if not src_photo.exists() or src_photo.stat().st_size < 20_000:
+        render_photo(src_photo)
+        print("wrote specimen photo.png into pack")
+    shutil.copy2(src_photo, PACK_DEC / "photo.png")
+    shutil.copy2(src_photo, PACK_DEC / "photo_2.png")
+    print("dec photo.png + photo_2.png (same Jeff photo ×2)")
     for dtype, spec in case["documents"].items():
         for d in spec if isinstance(spec, list) else [spec]:
             out = PACK_DEC / d["file"]
@@ -173,8 +164,6 @@ def _write_report(aid: str, settings, audit: dict, case_id: str) -> None:
 
 def main() -> int:
     settings = get_settings()
-    if not EDGE01_RAW.exists():
-        raise SystemExit(f"missing restore source {EDGE01_RAW}")
     restore_original_jeff(settings)
     aid = seed_dec_app(settings)
     print(f"\nDONE original={ORIG_APP}  dec={aid}")

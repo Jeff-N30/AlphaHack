@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings, get_settings
+from app.outbound.email_smtp import extract_email_address
 from app.storage.files import app_dir, load_meta
 
 
@@ -31,6 +32,7 @@ def list_applications(settings: Settings | None = None) -> list[dict[str, Any]]:
                 "id": meta.get("id", path.name),
                 "applicant_name": person.get("name"),
                 "trip_summary": person.get("trip"),
+                "applicant_email": correspondent_email(meta, settings),
                 "case_id": (report or {}).get("case_id") or meta.get("case_id"),
                 "status": meta.get("status", "unknown"),
                 "outcome": meta.get("outcome") or audit.get("outcome"),
@@ -63,6 +65,7 @@ def get_application_detail(application_id: str, settings: Settings | None = None
         **meta,
         "applicant_name": person.get("name"),
         "trip_summary": person.get("trip"),
+        "applicant_email": correspondent_email(meta, settings),
         "case_id": (report or {}).get("case_id") or meta.get("case_id"),
     }
     return {
@@ -70,6 +73,25 @@ def get_application_detail(application_id: str, settings: Settings | None = None
         "files": files,
         "report": report,
     }
+
+
+def correspondent_email(
+    meta: dict[str, Any] | None,
+    settings: Settings | None = None,
+) -> str | None:
+    """Applicant inbox address for Gloria's Send field — never the agency IMAP mailbox."""
+    settings = settings or get_settings()
+    if not meta:
+        return None
+    agency = extract_email_address(settings.email_imap_user or "")
+    for key in ("applicant_email", "email_sender", "sender"):
+        addr = extract_email_address(str(meta.get(key) or ""))
+        if not addr:
+            continue
+        if agency and addr == agency:
+            continue
+        return addr
+    return None
 
 
 def resolve_application_file(
