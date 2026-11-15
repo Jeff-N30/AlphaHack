@@ -85,7 +85,6 @@ const typeLabel = "text-[14px]/[20px] font-medium";
 const typeBodySm = "text-[13px]/[18px] font-normal";
 const typeCaption = "text-[12px]/[16px] font-normal tabular-nums";
 const typeRowTitle = "text-[13px]/[18px] font-medium";
-const typeRowHint = "text-[12px]/[18px] font-normal";
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rb-accent,oklch(20.5%_0_0))] dark:focus-visible:outline-[var(--rb-accent,oklch(100%_0_0))]";
 const focusRingInset =
@@ -126,19 +125,21 @@ const panelBody =
 const panelFoot =
   "flex min-h-12 min-w-0 items-center gap-2 px-4 py-3 text-[13px]/[18px] text-[#5c6568] dark:text-neutral-100/66 has-[button]:justify-end";
 const groupHead =
-  "flex h-10 items-center gap-3 px-6 pt-2 text-[12px]/[16px] font-medium text-[#5c6568] dark:text-neutral-100/70";
+  "flex h-7 items-center gap-1.5 px-6 text-[12px]/[16px] font-medium text-[#5c6568] dark:text-neutral-100/70";
+const groupCount =
+  "font-normal tabular-nums text-[#737c7f] dark:text-neutral-100/50";
+const checkRow =
+  "mx-3 flex w-[calc(100%-24px)] items-start gap-3 rounded-[8px] px-3 py-2 text-left";
+const checkHint =
+  "line-clamp-2 block text-[12px]/[18px] font-normal text-pretty text-[#737c7f] dark:text-neutral-100/55";
 const countPill =
   "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[rgb(25_33_35/0.05)] px-1.5 text-[12px]/[16px] font-medium tabular-nums text-[#5c6568] dark:bg-neutral-100/10 dark:text-neutral-100/70";
 const tag =
   "inline-flex h-5 shrink-0 items-center rounded-[5px] px-1.5 text-[12px]/[16px] font-medium";
-const tagFail =
-  "bg-[oklch(58%_0.19_26/0.09)] text-[oklch(50%_0.18_26)] dark:bg-[oklch(58%_0.19_26/0.2)] dark:text-[oklch(76%_0.14_26)]";
-const tagWarn =
-  "bg-[oklch(75%_0.14_75/0.16)] text-[oklch(48%_0.1_62)] dark:bg-[oklch(75%_0.14_75/0.2)] dark:text-[oklch(80%_0.13_68)]";
 const tagOk =
   "bg-[rgb(25_33_35/0.06)] text-[#41494c] dark:bg-neutral-100/10 dark:text-neutral-100/80";
 const issueGlyph =
-  "mt-px flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-[oklch(58%_0.19_26/0.09)] text-[oklch(50%_0.18_26)] dark:bg-[oklch(58%_0.19_26/0.2)] dark:text-[oklch(76%_0.14_26)]";
+  "flex h-[18px] w-4 shrink-0 items-center justify-center before:size-1.5 before:rounded-full before:bg-[oklch(58%_0.19_26)] before:content-['']";
 const paneHead =
   "flex h-12 min-w-0 shrink-0 items-center gap-2 border-b border-[rgb(25_33_35/0.08)] bg-white px-6 dark:border-neutral-100/8 dark:bg-neutral-950";
 const paneTitle =
@@ -1286,11 +1287,11 @@ function ApprovalPanel({
                 <span className={inkSlot}>Your call</span>
               </div>
               <div className="flex min-w-0 flex-col">
-                <div className="flex items-start gap-3.5 px-6 py-6">
+                <div className="flex items-start gap-3 px-6 pt-5 pb-4">
                   <span
                     aria-hidden
                     className={cx(
-                      "-mt-1 flex size-8 shrink-0 items-center justify-center rounded-[8px]",
+                      "flex size-6 shrink-0 items-center justify-center rounded-full",
                       plain.auto === "failed"
                         ? "bg-[oklch(58%_0.19_26/0.09)]"
                         : plain.auto === "attention"
@@ -1304,7 +1305,7 @@ function ApprovalPanel({
                         ? Alert02Icon
                         : CheckmarkCircle02Icon
                     }
-                    size={16}
+                    size={14}
                     className={cx(
                       "shrink-0",
                       plain.auto === "failed"
@@ -1316,7 +1317,7 @@ function ApprovalPanel({
                   />
                   </span>
                   <div className="min-w-0">
-                    <p className={cx("text-[16px]/[24px] font-semibold tracking-[-0.01em]", text1)}>
+                    <p className={cx("text-[14px]/[24px] font-semibold tracking-[-0.005em]", text1)}>
                       {plain.auto === "passed"
                         ? "Automated checks passed"
                         : plain.auto === "failed"
@@ -1325,7 +1326,7 @@ function ApprovalPanel({
                             ? "Needs your judgment"
                             : "Review required"}
                     </p>
-                    <p className={cx("text-[13px]/[20px]", text3, "mt-1 text-pretty")}>
+                    <p className={cx("text-[13px]/[20px]", text3, "text-pretty")}>
                       {plain.body}
                     </p>
                   </div>
@@ -1334,15 +1335,14 @@ function ApprovalPanel({
                 {issues.missingDocs.length > 0 ||
                 issues.mustFix.length > 0 ||
                 issues.youCheck.length > 0 ? (
-                  <div className="space-y-0 pb-2">
+                  <div className={cx(hairT, "flex flex-col gap-3 pt-3 pb-3")}>
                     {issues.missingDocs.length > 0 ? (
-                      <div className={hairT}>
+                      <div>
                         <p className={groupHead}>
-                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" /></span>
                           Missing from pack
-                          <span className={cx(countPill, "-ms-1")}>{issues.missingDocs.length}</span>
+                          <span className={groupCount}>{issues.missingDocs.length}</span>
                         </p>
-                        <ul className="pb-2">
+                        <ul>
                           {issues.missingDocs.map((label) => {
                             const linked = fileForMissingLabel(files, label);
                             return (
@@ -1352,7 +1352,7 @@ function ApprovalPanel({
                                   disabled={!linked}
                                   onClick={() => openDoc(linked)}
                                   className={cx(
-                                    "flex w-full items-start gap-3 px-6 py-3 text-left",
+                                    checkRow,
                                     linked
                                       ? cx(
                                           hoverFill,
@@ -1364,18 +1364,14 @@ function ApprovalPanel({
                                       : "cursor-default opacity-90",
                                   )}
                                 >
-                                  <span className={issueGlyph} aria-hidden>
-                                    <HugeiconsIcon icon={Alert02Icon} size={10} />
-                                  </span>
+                                  <span className={issueGlyph} aria-hidden />
                                   <span className="min-w-0 flex-1">
                                     <span className={cx(typeRowTitle, text1, "block")}>
                                       {label}
                                     </span>
                                     <span
                                       className={cx(
-                                        typeRowHint,
-                                        text3,
-                                        "mt-0.5 block text-pretty",
+                                        checkHint,
                                       )}
                                     >
                                       {linked
@@ -1383,7 +1379,7 @@ function ApprovalPanel({
                                         : "Ask applicant to upload this document"}
                                     </span>
                                   </span>
-                                  <span className={cx(tag, tagFail)}>
+                                  <span className="sr-only">
                                     Missing
                                   </span>
                                 </button>
@@ -1395,13 +1391,12 @@ function ApprovalPanel({
                     ) : null}
 
                     {issues.mustFix.length > 0 ? (
-                      <div className={hairT}>
+                      <div>
                         <p className={groupHead}>
-                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(58%_0.19_26)]" /></span>
                           Ask applicant to fix
-                          <span className={cx(countPill, "-ms-1")}>{issues.mustFix.length}</span>
+                          <span className={groupCount}>{issues.mustFix.length}</span>
                         </p>
-                        <ul className="pb-2">
+                        <ul>
                           {issues.mustFix.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? i);
                             const copy = ruleCopy(r.rule_id ?? r.id);
@@ -1413,7 +1408,7 @@ function ApprovalPanel({
                                   disabled={!linked.length}
                                   onClick={() => openDocs(linked)}
                                   className={cx(
-                                    "flex w-full items-start gap-3 px-6 py-3 text-left",
+                                    checkRow,
                                     linked.length
                                       ? cx(
                                           hoverFill,
@@ -1425,25 +1420,21 @@ function ApprovalPanel({
                                       : "cursor-default",
                                   )}
                                 >
-                                  <span className={issueGlyph} aria-hidden>
-                                    <HugeiconsIcon icon={Alert02Icon} size={10} />
-                                  </span>
+                                  <span className={issueGlyph} aria-hidden />
                                   <span className="min-w-0 flex-1">
                                     <span className={cx(typeRowTitle, text1, "block")}>
                                       {copy.title}
                                     </span>
                                     <span
                                       className={cx(
-                                        typeRowHint,
-                                        text3,
-                                        "mt-0.5 block text-pretty",
+                                        checkHint,
                                       )}
                                     >
                                     {issuePlain(r)}
                                       {linked.length ? " · tap to open" : ""}
                                     </span>
                                 </span>
-                                <span className={cx(tag, tagFail)}>
+                                <span className="sr-only">
                                     Fix
                                   </span>
                                 </button>
@@ -1455,16 +1446,15 @@ function ApprovalPanel({
                     ) : null}
 
                     {issues.youCheck.length > 0 ? (
-                      <div className={hairT}>
+                      <div>
                         <p className={groupHead}>
-                          <span aria-hidden className="flex w-[18px] shrink-0 justify-center"><span className="size-1.5 rounded-full bg-[oklch(72%_0.15_70)]" /></span>
                           You confirm
-                          <span className={cx(countPill, "-ms-1")}>
+                          <span className={groupCount}>
                           {youCheckIds.filter((id) => confirmedIds[id]).length}/
                           {issues.youCheck.length}
                           </span>
                         </p>
-                        <ul className="pb-2">
+                        <ul>
                           {issues.youCheck.map((r, i) => {
                             const id = String(r.rule_id ?? r.id ?? `you-${i}`);
                             const copy = ruleCopy(r.rule_id ?? r.id);
@@ -1481,8 +1471,9 @@ function ApprovalPanel({
                               <li key={id}>
                                 <div
                                   className={cx(
-                                    "flex w-full items-start gap-3 px-6 py-3",
-                                    checked && "bg-[rgb(25_33_35/0.03)] dark:bg-neutral-100/[0.04]",
+                                    checkRow,
+                                    "transition-colors duration-[120ms] hover:bg-[rgb(25_33_35/0.03)] dark:hover:bg-neutral-100/[0.04]",
+                                    checked && "[&>button:last-of-type]:opacity-50",
                                   )}
                                 >
                                   {/* Real button — never sr-only checkbox (focus scrolls the list away) */}
@@ -1497,10 +1488,10 @@ function ApprovalPanel({
                                     }
                                     onClick={toggleConfirm}
                                     className={cx(
-                                      "mt-px flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded-[5px] border bg-white shadow-[0_1px_1px_rgb(25_33_35/0.05)] transition-colors dark:bg-neutral-900",
+                                      "mt-px flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-[4px] border transition-colors",
                                       checked
                                         ? "border-[#192123] bg-[#192123] text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
-                                        : "border-[rgb(25_33_35/0.24)] hover:border-[rgb(25_33_35/0.45)] dark:border-neutral-100/30",
+                                        : "border-[rgb(25_33_35/0.22)] bg-white hover:border-[rgb(25_33_35/0.45)] dark:border-neutral-100/30 dark:bg-neutral-900",
                                       focusRingInset,
                                     )}
                                   >
@@ -1513,7 +1504,7 @@ function ApprovalPanel({
                                     disabled={!linked.length}
                                     onClick={() => openDocs(linked)}
                                     className={cx(
-                                      "min-w-0 flex-1 text-left",
+                                      "min-w-0 flex-1 text-left transition-opacity duration-[120ms]",
                                       linked.length
                                         ? cx(transition, "cursor-pointer")
                                         : "cursor-default",
@@ -1524,20 +1515,13 @@ function ApprovalPanel({
                                     </span>
                                     <span
                                       className={cx(
-                                        typeRowHint,
-                                        text3,
-                                        "mt-0.5 block text-pretty",
+                                        checkHint,
                                       )}
                                     >
                                       {issuePlain(r)}
                                     </span>
                                   </button>
-                                  <span
-                                    className={cx(
-                                      tag,
-                                      checked ? tagOk : tagWarn,
-                                    )}
-                                  >
+                                  <span className="sr-only">
                                     {checked ? "OK" : "Check"}
                                   </span>
                                 </div>
@@ -1554,7 +1538,7 @@ function ApprovalPanel({
                   </p>
                 )}
 
-                <div className={cx(hairT, "px-6 py-2")}>
+                <div className={cx(hairT, "px-6 py-1.5")}>
                   <button
                     type="button"
                     aria-expanded={showTech}
@@ -1596,7 +1580,7 @@ function ApprovalPanel({
                 </div>
               </div>
               {!alreadyDecided ? (
-                <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgb(25_33_35/0.08)] bg-white px-6 pt-4 pb-5 shadow-[0_-8px_16px_-12px_rgb(25_33_35/0.12)] dark:border-neutral-100/8 dark:bg-neutral-950">
+                <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-[rgb(25_33_35/0.08)] bg-white px-6 pt-3 pb-4 shadow-[0_-8px_16px_-12px_rgb(25_33_35/0.12)] dark:border-neutral-100/8 dark:bg-neutral-950">
                   <div className="flex min-w-0 items-end gap-2">
                   <label className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <span className={cx("text-[12px]/[16px] font-medium", text3)}>
@@ -1663,14 +1647,14 @@ function ApprovalPanel({
                   </div>
                   </div>
                   {!emailOk ? (
-                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-2 pt-0.5")}>
-                      <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-current" />
+                    <p className={cx(typeCaption, "flex items-start gap-2 text-[#737c7f] dark:text-neutral-100/55")}>
+                      <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[oklch(72%_0.15_70)]" />
                       Enter the correspondent email — the button sends SMTP from your Gmail
                     </p>
                   ) : null}
                   {!hasErrors && !allYouConfirmed ? (
-                    <p className={cx(typeCaption, statusWarn, "flex items-start gap-2 pt-0.5")}>
-                      <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-current" />
+                    <p className={cx(typeCaption, "flex items-start gap-2 text-[#737c7f] dark:text-neutral-100/55")}>
+                      <span aria-hidden className="mt-[5px] size-1.5 shrink-0 rounded-full bg-[oklch(72%_0.15_70)]" />
                       Tick every “You confirm” item before approving
                     </p>
                   ) : null}
