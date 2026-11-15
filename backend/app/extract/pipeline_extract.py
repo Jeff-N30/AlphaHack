@@ -10,6 +10,8 @@ from app.ingest.render import read_preview
 from app.models import DocType, Extraction, MRZ
 from app.rules.facts_from_extractions import passport_from_mrz
 from app.storage.files import app_dir
+from app.trace.recorder import record as trace_record
+from app.trace.recorder import span as trace_span
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +48,24 @@ def extract_application_docs(
             continue
         try:
             extractions.append(passport_from_mrz(MRZ.model_validate(mrz_raw)))
+            trace_record(
+                "extract:passport",
+                label="Passport fields (MRZ)",
+                inputs={"file": entry.get("file")},
+                outputs={"source": "mrz", "fields": sorted((mrz_raw or {}).keys())[:20]},
+                via=["op:mrz"],
+                source=f"file:{entry.get('file')}",
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("bad MRZ on %s: %s", entry.get("file"), exc)
+            trace_record(
+                "extract:passport",
+                label="Passport fields (MRZ)",
+                status="error",
+                inputs={"file": entry.get("file")},
+                outputs={"error": str(exc)[:300]},
+                source=f"file:{entry.get('file')}",
+            )
 
     for entry in ingest.get("files") or []:
         if entry.get("rejected"):
@@ -69,8 +87,20 @@ def extract_application_docs(
         if dtype not in EXTRACTABLE:
             continue
         try:
-            prev = read_preview(path, max_pages=6)
-            ex = extract_by_type(dtype, prev.text, source=path, settings=settings)
+            with trace_span(
+                f"extract:{dtype.value}",
+                label=f"Extract {dtype.value.replace('_', ' ')}",
+                inputs={"file": fname, "doc_type": dtype.value},
+                source=f"file:{fname}",
+            ) as ex_out:
+                prev = read_preview(path, max_pages=6)
+                ex = extract_by_type(dtype, prev.text, source=path, settings=settings)
+                dumped = ex.model_dump(mode="json")
+                ex_out["fields"] = sorted(
+                    k for k, v in dumped.items()
+                    if v not in (None, [], {}, "") and k not in {"field_meta", "doc_type"}
+                )[:30]
+                ex_out["anomaly_flags"] = dumped.get("anomaly_flags") or []
             extractions.append(ex)
             # payslips: keep list under same key
             if dtype == DocType.payslip:

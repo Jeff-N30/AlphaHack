@@ -140,6 +140,17 @@ _MEDIA = {
 }
 
 
+@app.get("/applications/{application_id}/execution-graph")
+def get_execution_graph(application_id: str) -> dict:
+    """Agent environment (registry/checklist/config) + timestamped execution events."""
+    from app.trace.graph import build_execution_graph
+
+    try:
+        return build_execution_graph(application_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+
+
 @app.get("/applications/{application_id}/files/{filename}")
 def get_application_file(application_id: str, filename: str):
     """Original document (PDF / PNG / JPEG) for Gloria's desk."""
