@@ -26,7 +26,7 @@ from app.ingest.render import allowed_suffix
 from app.lock.actions import LockError, approve_application, mark_review, send_draft
 from app.lock.audit_log import append_audit_log
 from app.lock.tokens import issue_confirm_token
-from app.storage.files import create_application, load_meta, redact_application, store_upload
+from app.storage.files import complete_application, create_application, load_meta, redact_application, store_upload
 
 logger = logging.getLogger(__name__)
 _REPO = Path(__file__).resolve().parents[2]
@@ -230,6 +230,43 @@ def auth_officer(body: OfficerAuthBody) -> dict:
 
 class RedactBody(BaseModel):
     confirm: bool = Field(..., description="Must be true to delete sensitive data")
+
+
+@app.post("/applications/{application_id}/complete")
+def complete_applicant_case(
+    application_id: str,
+    body: RedactBody,
+) -> dict:
+    """Complete an approved case and irreversibly remove its sensitive data."""
+    if not body.confirm:
+        raise HTTPException(400, "confirm must be true")
+    try:
+        meta = load_meta(application_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    if meta.get("status") == "completed" and meta.get("sensitive_data_redacted"):
+        return {"meta": meta, "deleted_files": 0, "deleted_database_rows": 0}
+    if meta.get("status") != "approved_by_gloria":
+        raise HTTPException(409, "a case can only be completed after approval")
+    try:
+        result = complete_application(
+            application_id,
+            officer="Gloria",
+            settings=get_settings(),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "application not found") from exc
+    append_audit_log(
+        officer="Gloria",
+        action="complete_case_and_redact_sensitive_data",
+        application_id=application_id,
+        settings=get_settings(),
+        extra={
+            "deleted_files": result["deleted_files"],
+            "deleted_database_rows": result["deleted_database_rows"],
+        },
+    )
+    return result
 
 
 @app.post("/applications/{application_id}/redact")

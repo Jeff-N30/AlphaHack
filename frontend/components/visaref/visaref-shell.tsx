@@ -33,7 +33,7 @@ import {
   postEmailInboxRead,
   postGloriaAction,
   postSeedCase,
-  redactApplication,
+  completeApplication,
   uploadAndAudit,
   type ApplicationRow,
 } from "@/lib/api";
@@ -1217,14 +1217,15 @@ function ApprovalPanel({
     },
     onError: (err: Error) => toast.error(err.message),
   });
-  const redactMut = useMutation({
-    mutationFn: () => redactApplication(applicationId),
+  const completeMut = useMutation({
+    mutationFn: () => completeApplication(applicationId),
     onSuccess: (data) => {
       toast.success(
-        `Deleted ${data.deleted_files} sensitive file${data.deleted_files === 1 ? "" : "s"}`,
+        `Case completed — deleted ${data.deleted_files} sensitive file${data.deleted_files === 1 ? "" : "s"}`,
       );
       qc.invalidateQueries({ queryKey: ["applications"] });
       qc.invalidateQueries({ queryKey: ["application", applicationId] });
+      onDone();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -1834,18 +1835,18 @@ function ApprovalPanel({
                     <button
                       type="button"
                       className={cx(secondaryButton, buttonSm, "text-red-700 dark:text-red-300")}
-                      disabled={redactMut.isPending}
+                      disabled={completeMut.isPending}
                       onClick={() => {
                         if (
                           window.confirm(
-                            "Delete the applicant documents, reports, contact details, and extracted personal data? The approved record will remain.",
+                            "Mark this case done and permanently delete the applicant documents, reports, contact details, and extracted personal data? Only the decision record will remain.",
                           )
                         ) {
-                          redactMut.mutate();
+                          completeMut.mutate();
                         }
                       }}
                     >
-                      {redactMut.isPending ? "Deleting…" : "Delete sensitive data"}
+                      {completeMut.isPending ? "Completing…" : "Mark done & delete data"}
                     </button>
                   ) : null}
                 </div>

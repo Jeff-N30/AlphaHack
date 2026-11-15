@@ -56,10 +56,11 @@ An unlocked browser session expires after four hours — this is a UI gate only;
 Approve / Send still need one-time confirm tokens. The local database remains
 regular SQLite.
 
-After an approved case, an officer can explicitly `POST
-/applications/{id}/redact` with `{"confirm": true}`. This removes uploaded
-documents, extraction reports, email details, and detailed database rows while
-retaining the application ID, checklist, dates, status, outcome, and audit
+After an approved case, the desk exposes **Mark done & delete data**. It calls
+`POST /applications/{id}/complete` with `{"confirm": true}`. This permanently
+removes uploaded documents, extraction reports, traces, email details, and
+detailed database rows, then marks the case `completed` while retaining only
+the application ID, checklist, dates, outcome, completion metadata, and audit
 record.
 
 ## Pipeline

@@ -116,6 +116,17 @@ export function redactApplication(id: string) {
   });
 }
 
+export function completeApplication(id: string) {
+  return request<{
+    meta: ApplicationDetail["meta"];
+    deleted_files: number;
+    deleted_database_rows: number;
+  }>(`/applications/${id}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ confirm: true }),
+  });
+}
+
 export function fetchApplications() {
   return request<ApplicationRow[]>("/applications");
 }

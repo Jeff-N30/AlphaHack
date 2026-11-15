@@ -113,14 +113,18 @@ def redact_application(
     settings = settings or get_settings()
     meta = load_meta(application_id, settings)
     root = app_dir(application_id, settings)
-    raw = root / "raw"
-    deleted_files = sum(1 for path in raw.rglob("*") if path.is_file()) if raw.exists() else 0
-    if raw.exists():
-        shutil.rmtree(raw)
-    for report_name in ("email_pipeline_report.json", "ingest_report.json"):
-        report_path = root / report_name
-        if report_path.exists():
-            report_path.unlink()
+    # Keep only meta.json, which is rewritten below with the non-sensitive
+    # decision record. This also covers future reports/traces added to the
+    # application directory without requiring another retention allowlist.
+    deleted_files = 0
+    for path in root.iterdir():
+        if path.name == "meta.json":
+            continue
+        if path.is_dir():
+            deleted_files += sum(1 for child in path.rglob("*") if child.is_file())
+            shutil.rmtree(path)
+        else:
+            path.unlink()
             deleted_files += 1
 
     deleted_rows = redact_application_sensitive_data(application_id, settings)
@@ -142,3 +146,21 @@ def redact_application(
         "deleted_files": deleted_files,
         "deleted_database_rows": deleted_rows,
     }
+
+
+def complete_application(
+    application_id: str,
+    *,
+    officer: str,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    """Permanently remove sensitive data and retain a completed decision record."""
+    settings = settings or get_settings()
+    result = redact_application(application_id, officer=officer, settings=settings)
+    meta = result["meta"]
+    meta["status"] = "completed"
+    meta["completed_by"] = officer
+    meta["completed_at"] = datetime.now(timezone.utc).isoformat()
+    save_meta(meta, settings)
+    result["meta"] = meta
+    return result

@@ -11,6 +11,7 @@ from app.lock.actions import approve_application
 from app.lock.tokens import clear_tokens_for_tests, issue_confirm_token
 from app.storage.files import (
     app_dir,
+    complete_application,
     create_application,
     redact_application,
     save_meta,
@@ -159,3 +160,25 @@ def test_redact_keeps_approved_record_and_removes_sensitive_data(tmp_path: Path)
     assert redacted["status"] == "approved_by_gloria"
     assert "applicant_email" not in redacted
     assert redacted["sensitive_data_redacted"] is True
+
+
+def test_complete_marks_case_done_and_removes_sensitive_data(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=tmp_path,
+        checklist_dir=Path(__file__).resolve().parents[2] / "checklists",
+    )
+    meta = create_application(
+        checklist_id="fr-schengen-short-stay",
+        submission_date=date(2026, 11, 16),
+        settings=settings,
+    )
+    meta.update({"status": "approved_by_gloria", "applicant_email": "person@example.com"})
+    save_meta(meta, settings)
+    store_upload(meta["id"], "passport.pdf", b"private", settings=settings)
+
+    result = complete_application(meta["id"], officer="Gloria", settings=settings)
+
+    assert result["meta"]["status"] == "completed"
+    assert result["meta"]["sensitive_data_redacted"] is True
+    assert result["meta"]["completed_by"] == "Gloria"
+    assert not (app_dir(meta["id"], settings) / "raw").exists()
